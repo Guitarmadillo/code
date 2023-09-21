@@ -6,6 +6,7 @@
 #
 #This script builds JanBoonen Library into a .dll
 #Then compiles the target source file
+#The target output file will be dynamically linked to the library
 
 # Paths to Library and Project source code 
 lib_path="$HOME/dev/twsapi/TwsApiCpp"
