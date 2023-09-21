@@ -1,0 +1,225 @@
+2023-09-20
+
+// The point of this video is to help almost anyone get set up with a C++
+// development environment for interacting with the TWS API under a Debian Based
+// Linux Distro. 
+
+// Open Computer
+...
+
+// Open Terminal
+// 3 Tabs should be opened in the terminal to do the setup the manual way, for learning purposes. 
+// Ideally it is best to just use the bash script but I will show it this way for the example. 
+
+// The reason 3 tabs are needed to do the example easier is because the source
+// directories for the library source, project source, and target directory are
+// all different.
+
+// Set up a working directory starting from your $HOME directory
+// if you follow along this way, the batch files should work out of the box
+
+cd (go back home)
+mkdir dev
+cd dev
+mkdir twsapi (this will be our working directory). 
+
+// The bash scripts attached will use this directory so if you use a different
+// location, you will need to adjust those bash scripts.
+
+---------------------------------------------------------------
+// Install TWS/IB Gateway (enable the first API setting and disable Read Only API)
+
+// The example code we will compile will not work properly unless you have a
+// subscription to NASDAQ top of book Network C.
+
+// comment: TWS seems to run well on my Debian machine, better than on Windows. 
+
+---------------------------------------------------------------
+// Install clang compiler (recommended) else just use gcc 
+
+// I prefer nala package manager so:
+sudo nala install clang
+
+// or the regular way:
+sudo apt install clang
+
+// Test the compiler 
+g++ -std=c++17 -march=x86-64 -O0 -o test testcompile.cpp
+
+clang++ -std=c++17 -march=x86-64 -O0 -o test testcompile.cpp
+
+// Run it
+./test
+
+-------------------------------------------------------------
+// Read about why JanBoonen TWS API Implementation is helpful
+// https://github.com/JanBoonen/TwsApiCpp/blob/master/README.md
+
+// Change to your working directory 
+cd <working directory>
+
+// Get the repository in your working directory 
+git clone https://github.com/JanBoonen/TwsApiCpp.git
+
+// (necessary for automated trading) Commit the changes of this pull request 
+// Then you will need to rebuild library again. 
+// https://github.com/JanBoonen/TwsApiCpp/pull/21
+
+---------------------------------------------------------------
+Build Method 1 
+// Build the library as a dynamic link library then build the executable separate
+
+// This method relies on the dll staying in the directory you tell the executable
+// to look in.  If the dll is not found or has been lost, the executable will not
+// run. The executable is kept more lightweight, I am not sure this makes much of
+// a difference especially for small or medium projects. This library is
+// lightweight to being with. 
+
+// Jan already included make files so those can be used to build the library
+// I prefer to build the DLL myself with clang or gcc 
+
+// Library source is located here for me:
+$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src
+
+// Header files necessary for building library are here, all of these
+// directories must be included: 
+$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api 
+$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src 
+$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared 
+$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src
+
+// go to directory of the library source code
+cd $HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src
+ 
+// Build library with g++ (backslashes are used to continue the terminal command)
+g++ -march=x86-64 -shared -O2 -s -std=gnu++17 -fPIC TwsApiL0.cpp \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src \
+-o $HOME/dev/twsapi/tws_cpp_linux_api.dll -lpthread
+
+// clang version
+// Build library with clang++
+clang++ -march=x86-64 -shared -O2 -s -std=gnu++17 -fPIC TwsApiL0.cpp \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src \
+-o $HOME/dev/twsapi/tws_cpp_linux_api.dll -lpthread
+
+// Clang provides a warning about 56 unhandled enumeration values, this is an
+// issue with the way the code is formatted. Clang typically provides more
+// advanced warnings like this but it can be dismissed for now. 
+// you can disable this warning by adding -Wno-switch to the line that builds the
+// library. We are not making changes to the library source code right now but
+// you can always reenable the warning if you wish to fix it.  I do not
+// recommend disabling clang warnings, only do so if you know what you are
+// doing. 
+
+---------------------------------------------------------------
+// Build the Test program 
+
+Included Test source code is located here: (assumes working directory) 
+$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Test/Src
+
+// Go to directory of test source code file
+cd $HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Test/Src
+
+// Build program with g++
+g++ -march=x86-64 -O2 -s -std=gnu++17 Test.cpp -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src -o $HOME/dev/twsapi/Test \
+$HOME/dev/twsapi/tws_cpp_linux_api.dll -Wno-deprecated 
+
+// Build program with clang++
+clang++ -march=x86-64 -O2 -s -std=gnu++17 Test.cpp -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src -o \
+$HOME/dev/twsapi/Test $HOME/dev/twsapi/tws_cpp_linux_api.dll -Wno-deprecated 
+
+// Make sure to properly specify the directory of where the library is, the
+// library needs to stay in this directory as it is being dynamically linked.  
+
+// Remember to change the directory of the source code if it's different on
+// your system. Ideally use a batch script with input variables. More on this
+// later. 
+
+---------------------------------------------------------------
+Open TWS and run the test program
+
+// Remember that it requires top of book nasdaq data to run. There is a way to use
+delayed quotes instead but the example code we are building from the
+respository is programmed to use the real-time tick types.
+
+Show the TWS API logs which are useful for debugging (they are enabled by default)
+
+---------------------------------------------------------------
+Second Building Method: 
+// Build the library and program into object files and statically link them at compile time
+
+// This reduces the need for recompiling the library if changes were made, and
+// keeping track of where the library file is.  Overall it is simplier for the end
+// user.
+
+// go to directory of the library source code
+cd $HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src
+
+// gcc build library into object file to be statically linked
+g++ -march=x86-64 -O2 -s -std=gnu++17 TwsApiL0.cpp -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src -c -o TwsApiL0.o 
+
+
+// Go to directory of test source code file
+cd $HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Test/Src
+
+// Compile the project source into object code
+g++ -march=x86-64 -O2 -s -std=gnu++17 Test.cpp -I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Api \
+-I$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src -I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/Shared \
+-I$HOME/dev/twsapi/TwsApiCpp/source/PosixClient/src -c -o Test.o -Wno-deprecated 
+
+// Change back to working directory 
+cd $HOME/dev/twsapi
+
+// Build the executable using both object files 
+g++ -march=x86-64 -O2 -s -std=gnu++17 $HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Test/Src/Test.o \
+$HOME/dev/twsapi/TwsApiCpp/TwsApiC++/Src/TwsApiL0.o -o $HOME/dev/twsapi/st_test -lpthread
+
+// Run it if in the working dir
+./output_file (whatever you named it)
+./Test
+./st_test (static version)
+
+// clang++ method is exactly the same just change g++ to clang++ 
+// 2. you can add -Wno-switch when building the library with clang to suppress the
+// warning message
+
+---------------------------------------------------------------
+Bonus:
+// Use provided bash scripts for easy workflow  
+
+// Build Method 1
+// g++ Build Library and executable separate
+./tws1.sh 
+
+// clang++ Build Library and executable separate
+./tws11.sh 
+
+// Build Method 2
+// g++ compile into object code and statically link
+./tws2.sh 
+
+// clang++ compile into object code and statically link
+./tws22.sh 
+
+Bonus 2: 
+Set up a TMUX session for coding and building with even quicker workflow
+
+// in the bash file you can change the optimization level depending on if 
+// you are debugging or for production. -flto (link time optimization) can also
+// be added to both compilers when building the final output
+
+// Study the source code! 
+
+// This API doesn't have all of the API fields available in newer TWS API
+// versions but it has most of the essential ones. 
+
+// Code a bit everyday,  off to the races!! 
+---------------------------------------------------------------
