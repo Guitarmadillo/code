@@ -15,9 +15,6 @@
 // directories for the library source, project source, and target directory are
 // all different.
 
-// Download the folder on the repository to get the bash scripts and guide file
-git clone --depth=1 https://github.com/Guitarmadillo/code --branch main --single-branch tws_api_linux_video
-
 // Set up a working directory starting from your $HOME directory
 // if you follow along this way, the batch files should work out of the box
 
@@ -25,6 +22,9 @@ cd (go back home)
 mkdir dev
 cd dev
 mkdir twsapi (this will be our working directory). 
+
+// Download the folder on the repository to get the bash scripts and guide file
+git clone --depth=1 https://github.com/Guitarmadillo/code --branch main --single-branch tws_api_linux_video
 
 // The bash scripts attached will use this directory so if you use a different
 // location, you will need to adjust those bash scripts.
