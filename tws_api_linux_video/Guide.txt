@@ -35,8 +35,6 @@ git clone --depth=1 https://github.com/Guitarmadillo/code --branch main --single
 // The example code we will compile will not work properly unless you have a
 // subscription to NASDAQ top of book Network C.
 
-// comment: TWS seems to run well on my Debian machine, better than on Windows. 
-
 ---------------------------------------------------------------
 // Install clang compiler (recommended) else just use gcc 
 
