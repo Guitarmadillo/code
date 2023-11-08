@@ -8,7 +8,6 @@
 
 :: Video by VerrilloTrading building TWS C++ API on Linux: https://youtu.be/iIGA0x8mImY
 
-
 :: Video by VerrilloTrading where this script was used on Microsoft Windows: https://youtu.be/ZxwdTgMY44g
 
 :: Set the name of the source file and output executable 
