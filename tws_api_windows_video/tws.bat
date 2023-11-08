@@ -11,7 +11,6 @@ set exe=%source%_64
 
 :: This is used to kill the executable if it is running while you run this script.
 :: useful for quick debugging.
-
 TASKLIST | FINDSTR /I "%exe%"
 IF ERRORLEVEL 1 (echo "%exe%" is not running) ELSE (taskkill /F /IM %exe%.exe)
 
