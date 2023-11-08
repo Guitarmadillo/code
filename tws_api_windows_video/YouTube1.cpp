@@ -15,14 +15,15 @@
 // used all at the same time. You will need to comment and uncomment the appropriate 
 // things in the main function. 
 //
-// Not strictly necessary but helpful: 
-// I recommend vim as the text editor and
-// installing vim-commentary plugin which is super useful:
-// https://github.com/tpope/vim-commentary
+// Not strictly necessary: 
+// If you use vim text editor I recommend installing
+// vim-commentary plugin: https://github.com/tpope/vim-commentary
 //
 // Video by VerrilloTrading (VT) that uses this source file for the demonstation: 
 // https://youtu.be/5moyX0qwkCA
-//
+
+////////////////////////////////////////////////////////////////////////////////////
+
 // Include the TWS C++ API Header file
 #include "TwsApiL0.h"
 
