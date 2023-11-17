@@ -221,7 +221,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		{
 		  sc.AddMessageToLog("User is not authorized to use this study",1);
 		}
-    	return;
+    		return;
 	} 
 
 	// Add support for Enabling and Disabling the study via the input
@@ -287,10 +287,10 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	std::int64_t& TimeInSeconds = sc.GetPersistentInt64(2);
 
 	// TIMER: Interval is set to the length of our timer in seconds
-    int Interval = 2;
+    	int Interval = 2;
 
-    // Get the time in seconds and store it to persistent memory
-    TimeInSeconds = CurrentDateTime.GetTimeInSeconds();
+    	// Get the time in seconds and store it to persistent memory
+    	TimeInSeconds = CurrentDateTime.GetTimeInSeconds();
 	
 	// This is because when replaying a chart, LastUpdated is still at the
 	// current time and needs to be reset to the time of the replaying chart. 
@@ -299,12 +299,12 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		LastUpdated = TimeInSeconds;
 	}
 	
-    // Have X seconds elapsed since last updated?
-    if (LastUpdated + Interval > TimeInSeconds) 
+    	// Have X seconds elapsed since last updated?
+    	if (LastUpdated + Interval > TimeInSeconds) 
 	{
-        // X seconds have NOT elapsed, bomb out
-        return;
-    }
+       		// X seconds have NOT elapsed, bomb out
+       		return;
+   	}
 	
 	// When the Timer has passed
 	// LastUpdated gets updated to the current time, it resets the timer.
