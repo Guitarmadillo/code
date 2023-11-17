@@ -268,8 +268,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	else
 	{
 		// User wants to use the default bot. On the github code there is no default bot so the study will just bomb out.
-		sc.AddMessageToLog("If you see this message it means you compiled the study on your own and"
-		" it will be necessary for you to use your own bot using the provided input settings.",1);
+		sc.AddMessageToLog("If you see this message it means you compiled the study on your own. 1. You need to remove or comment out the return; on line 273."
+		"2. It is necessary for you to use your own bot using the provided input settings.",1);
 		return; 
 
 		// default bot token 
