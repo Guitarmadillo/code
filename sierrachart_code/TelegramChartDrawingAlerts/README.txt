@@ -25,20 +25,20 @@ Telegram Groups and Private chats are supported. Channels are a bit more complex
 
 Users can override the default bot with their their own bot if they prefer.
 
-The chart drawing will handle the alert and it's condition, but when the alert occurs, this study will be able to see that a new alert occurred by reading the log file.
+The chart drawing will handle the alert and its condition, but when the alert occurs, this study will be able to see that a new alert occurred by reading the log file.
 
 It is necessary to enable this setting in Sierra Chart:
 Global Settings >> Log >> Save Alerts Log to File
 
-Important: It is necessary to make sure Input #4 is set to the path that is set in Global Settings > Paths > Chart Image Folder. When this Setting is changed in Sierra Chart, the folder will be automatically automatically created. It is absolutely critical that you set the study input #4 text to this path. You will get an Error showing up in the message log if the path you specified in the Study input does not exist. Example: The default path for this on Windows is: C:\SierraChart\Images If you are running on Linux thrugh Wine or if you changed the drive letter of your C drive it might look like this: Z:\mnt\SierraChart\Images
+Important: It is necessary to make sure Input #4 is set to the path that is set in Global Settings > Paths > Chart Image Folder. When this Setting is changed in Sierra Chart, the folder will be automatically created. It is absolutely critical that you set the study input #4 text to this path. You will get an Error showing up in the message log if the path you specified in the study input does not exist. Example: The default path for this on Windows is: C:\SierraChart\Images If you are running on Linux thrugh Wine or if you changed the drive letter of your C drive it might look like this: Z:\mnt\SierraChart\Images
 
 When a chart drawing alert is triggered, a new line is written to a file in the following directory: C:\SierraChart\Logs
 
 This study handles the various cases for when Sierra Chart generates new alert files.
 
-Important: For the screenshot function to work when charts are hidden behind other charts in your chartbook it is necessary to disable Destroy Chart Windows When Hidden.
-More info about this setting and how it is handled for the screenshot function:
-sc.SaveChartImageToFileExtended
+Important: For the screenshot function to work when charts are hidden behind other charts in your chartbook it is necessary to disable Destroy Chart Windows When Hidden. This setting is found in: Global Settings > General Settings > GUI > Destroy Chart Windows When Hidden.
+
+The ACSIL function being used to perform a chart screenshot is sc.SaveChartImageToFileExtended.
 
 Important: The screenshot function from Sierra Chart is limited to taking screenshots of charts in the chartbook where the function call originates from. For this reason it is necessary to have 1 instance of this study open per chartbook. So if you have 5 open chartbooks with different symbols waiting for alerts, you will need to open this study on a chart in each one of those chartbooks. When the study is active in any particular chartbook it will handle all the alerts that take place within that chartbook and provide an image of the chart as it is displayed in the chartbook. The chart can be hidden behind other charts and the screenshot will work as long as Destroy Chart Windows When Hidden is disabled.
 
@@ -51,7 +51,7 @@ It is not recommended to move the location of the Data Files Folder from the Sie
 
 If you absolutely need to move this folder you will need to perform this next step:
 
-IMPORTANT: If you have changed the location of the Data Files Folder, You will need to explicitly specify the directory of the Sierra Chart Logs folder. This folder will be located in the same directory where Sierra Chart is installed. The reason why this is necessary is because the study uses the Data Files Folder Path to get the Path to the Logs Folder. Example: if you moved your Data folder path to ANY PATH that is not the Sierra Chart Installation directory, you will now need to specify the Path of the Logs Folder which should be in the directory where Sierra Chart is installed. You need to explicitly specify the Logs Folder path in the last study input field.
+IMPORTANT: If you have changed the location of the Data Files Folder, You will need to explicitly specify the directory of the Sierra Chart Logs folder. This folder will be located in the same directory where Sierra Chart is installed. The reason why this is necessary is because the study uses the Data Files Folder Path to get the Path to the Logs Folder. Example: if you moved your Data folder path to ANY PATH that is not the Sierra Chart Installation directory, you will now need to specify the Path of the Logs Folder which is in the directory where Sierra Chart is installed. You need to explicitly specify the Logs Folder path in the last study input field.
 
 The default location of this folder is: C:\SierraChart\Logs
 
