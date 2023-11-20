@@ -280,6 +280,21 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// Get the current date time
 	SCDateTime CurrentDateTime; 
 	CurrentDateTime = sc.CurrentSystemDateTime; 
+	
+	// The following code adds support for chart replay. 
+	// It may not be strictly necessary for all use cases.
+	// If the user is doing a chart replay, get the time of the
+	// replaying chart, instead of the current time. 
+	int ReplayRunning = sc.GetReplayStatusFromChart(sc.ChartNumber);
+
+	if (ReplayRunning >= 1)
+    	{
+		CurrentDateTime = sc.CurrentDateTimeForReplay;
+	}
+	else
+	{
+    		CurrentDateTime = sc.CurrentSystemDateTime; 
+	} 
 
 	// declare necessary persistent variables 
 	std::int64_t& LastUpdated = sc.GetPersistentInt64(1); 
