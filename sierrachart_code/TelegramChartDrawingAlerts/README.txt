@@ -11,52 +11,59 @@ Reasons for sharing the source code:
 2. Helps the community
 3. Show off skills and features in Sierra Chart
 
-If you want to use this study and do not want to bother building it yourself you can send an email to support@verrillotrading.com with your Sierra Chart username and I will add your username to the list of allowed users for this .DLL. The .DLL has been compiled using this exact source code file **(except one change) and a build script.
+If you want to use this study and do not want to bother building it yourself you can send an email to support@verrillotrading.com with your Sierra Chart username and I will add your username to the list of allowed users for this DLL. The DLL has been compiled using this exact source code file **(except one change) and a build script.
 
-** For convenience purposes The .DLL provided by VerrilloTrading provides a default bot that users can rely on instead of having to create their own bot. The bot token for that bot was removed from the repository for security reasons.
+** For convenience purposes The DLL provided by VerrilloTrading provides a default bot that users can rely on instead of having to create their own bot. The bot token for that bot was removed from the repository for security reasons.
 
 HOW TO SETUP AND USE THIS STUDY:
 
-When this study is enabled and a chart drawing alert takes place, a Telegram message will be sent to the specified Chat Id. This message will contain information about the alert that took place, and a real-time screenshot of the chart where the alert came from. It is possible for the user to disable the screenshot feature and send a simple message.
+When this study is enabled and a Sierra Chart Drawing Alert takes place, a Telegram message including a chart screenshot will be sent to the specified Telegram Chat ID. This message will contain information about the alert that took place. It is possible for the user to disable the screenshot feature and send a simple text message. The message will be sent slightly faster in this case. This study handles different cases and exceptions for when Sierra Chart generates new Alert Log Files. If you find any undefined behaviour or a replicable bug, please inform the study developer at the above email.
 
-Use Telegram Web to get the Telegram Chat ID. It is necessary to be on Telegram Web version A to get the Chat ID from the address bar. This can be selected from the settings window in the top left when using Telegram Web. The Chat ID appears in the address bar. Example: https://web.telegram.org/a/#-12345678 where '-12345567' is the Chat ID. Groups and sub topics in groups typically have negative numbers as the Chat ID. To get your personal chat ID, go to the Saved Messages chat. On Telegram Web this can be accessed by clicking at the top right and it should appear in the drop down as 'Saved Messages'.
+Step 1:
 
-Telegram Groups and Private chats are supported. Channels are a bit more complex so they have been left out for the time being. You will need to add the bot to the group first. For private chats, you need to send a /start message to the bot first, Telegram bots cannot message you first. The default bot that the study uses on Telegram is https://t.me/vt_sierrachart_sender_bot. You need to message this bot with /start on Telegram, unless you are using your own bot.
+For this study to work it is necessary to Enable this setting in Sierra Chart:
+Global Settings >> Log >> Save Alerts Log to File
+
+When a Chart Drawing Alert is triggered, a new line is written to a file in the C:\SierraChart\Logs directory. The path to this Folder is relative to where you have Sierra Chart installed. It is also possible that this Logs Folder does not exist yet. Follow the next steps to ensure this folder exists.
+
+When putting the study on the chart for the first time it will provide instructions in the message log. After you have inputted the Telegram Chat ID in Step 2. If you still see an Error in the Message Log about not being able to find the Logs folder:
+
+1. Make sure you enabled the setting mentioned above named Save Alerts Log to File.
+2. Check if the Folder 'Logs' exists in your Sierra Chart installation directory.
+3. If the Logs folder does not exist, create a new Chart Drawing Alert and make sure it is triggered. Once this first alert is triggered, the folder should be created.
+4. Check inside the Logs folder for a file that starts with 'Alert Log' followed by the current DateTime. If you do not see this file, repeat the instructions in Step 1.
+
+Step 2:
+
+Get the Telegram Chat ID of where we want to send the alert. The easiest way is to use Telegram Web to get the Telegram Chat ID. Telegram Groups and Private Chats are supported. Channels are a bit more complex so they have been left out for the time being. It is necessary to be on Telegram Web version A to get the Chat ID from the browser address bar. The version can be selected from the settings window in the top left corner when using Telegram Web. The Chat ID for the currently open chat appears in the address bar. Try changing to different chats to see the end of the address bar change. Example: https://web.telegram.org/a/#-12345678 where '-12345567' is the Chat ID. Groups and Group Sub-Topics typically have negative numbers as the Chat ID. To get your personal chat ID, go to the Saved Messages chat. On Telegram Web this can be accessed by clicking at the top left and selecting 'Saved Messages'. The address bar should display your Private Chat ID.
+
+The default bot that the study uses on Telegram is https://t.me/vt_sierrachart_sender_bot.
+You need to message this bot with /start on Telegram or add it to your group, unless you are using your own bot. Telegram bots cannot message you first and they cannot read messages sent by other bots.
 
 Users can override the default bot with their their own bot if they prefer.
 
-The chart drawing will handle the alert and its condition, but when the alert occurs, this study will be able to see that a new alert occurred by reading the log file.
+Step 3:
 
-It is necessary to enable this setting in Sierra Chart:
-Global Settings >> Log >> Save Alerts Log to File
+Important: Make sure Study Input #4 is set to the Image Folder Path that is set in Global Settings > Paths > Chart Image Folder. When this setting is changed in Sierra Chart, a new folder will be automatically created. It is absolutely critical that you set the Study Input #4 text to this path or the screenshot will not work. You will get an Error showing up in the message log if the path you specified in this Study Input does not exist. The default path for this on Windows is: C:\SierraChart\Images If you are running on Linux through Wine or if you changed the drive letter of your C drive it might look like this: Z:\mnt\SierraChart\Images
 
-Important: It is necessary to make sure Input #4 is set to the path that is set in Global Settings > Paths > Chart Image Folder. When this Setting is changed in Sierra Chart, the folder will be automatically created. It is absolutely critical that you set the study input #4 text to this path. You will get an Error showing up in the message log if the path you specified in the study input does not exist. Example: The default path for this on Windows is: C:\SierraChart\Images If you are running on Linux thrugh Wine or if you changed the drive letter of your C drive it might look like this: Z:\mnt\SierraChart\Images
-
-When a chart drawing alert is triggered, a new line is written to a file in the following directory: C:\SierraChart\Logs
-
-This study handles the various cases for when Sierra Chart generates new alert files.
-
-Important: For the screenshot function to work when charts are hidden behind other charts in your chartbook it is necessary to disable Destroy Chart Windows When Hidden. This setting is found in: Global Settings > General Settings > GUI > Destroy Chart Windows When Hidden.
-
-The ACSIL function being used to perform a chart screenshot is sc.SaveChartImageToFileExtended.
+Important: For the screenshot function to work when charts are hidden behind other charts in your chartbook it is necessary to disable Destroy Chart Windows When Hidden.
 
 Important: The screenshot function from Sierra Chart is limited to taking screenshots of charts in the chartbook where the function call originates from. For this reason it is necessary to have 1 instance of this study open per chartbook. So if you have 5 open chartbooks with different symbols waiting for alerts, you will need to open this study on a chart in each one of those chartbooks. When the study is active in any particular chartbook it will handle all the alerts that take place within that chartbook and provide an image of the chart as it is displayed in the chartbook. The chart can be hidden behind other charts and the screenshot will work as long as Destroy Chart Windows When Hidden is disabled.
 
 INFO ABOUT THE LOG FILE PATH:
 
-The study should function correctly AS LONG AS:
-1. You have not changed the default location of the Data files folder.
+The following information applies to you if you have moved the Sierra Chart Data Files Folder out of the SC Installation directory.
 
-It is not recommended to move the location of the Data Files Folder from the Sierra Chart installation directory!
+It is not recommended to move the location of the Data Files Folder from the Sierra Chart installation directory.
 
-If you absolutely need to move this folder you will need to perform this next step:
+If you absolutely need to move this folder or have already moved it, you will need to perform this next step:
 
-IMPORTANT: If you have changed the location of the Data Files Folder, You will need to explicitly specify the directory of the Sierra Chart Logs folder. This folder will be located in the same directory where Sierra Chart is installed. The reason why this is necessary is because the study uses the Data Files Folder Path to get the Path to the Logs Folder. Example: if you moved your Data folder path to ANY PATH that is not the Sierra Chart Installation directory, you will now need to specify the Path of the Logs Folder which is in the directory where Sierra Chart is installed. You need to explicitly specify the Logs Folder path in the last study input field.
+IMPORTANT: If you have changed the location of the Data Files Folder, You will need to explicitly specify the directory of the Sierra Chart Logs folder. This folder will be located in the same directory where Sierra Chart is installed. The reason why this is necessary is because the study uses the Data Files Folder Path to get the Path to the Logs Folder. Example: if you moved the Data Folder to ANY PATH that is not the Sierra Chart Installation directory, you will now need to specify the Path of the Logs Folder which is in the directory where Sierra Chart is installed. You need to explicitly specify the Logs Folder path in the last study input field.
 
-The default location of this folder is: C:\SierraChart\Logs
+The default location of this folder is: C:\SierraChart\Logs If you are running on Linux through Wine or if you changed the drive letter of your C drive it might look like this: Z:\mnt\SierraChart\Logs
 
 For any issues or inquiries, send them to support@verrillotrading.com
 
-Thank you and I hope you enjoy the study!
+Thank you and enjoy the study!
 
 -VerrilloTrading, Content Creator - Programmer
