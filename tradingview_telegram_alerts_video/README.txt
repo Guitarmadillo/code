@@ -1,4 +1,4 @@
-How to Set up a Telegram Alert from TradingView (No Code)
+How to Set up a Telegram Alert from TradingView (No Code or Third Party)
 
 This README file contains all of the contents that appear on this web page: 
 https://www.verrillotrading.com/tradingview-telegram-chart-alerts/
@@ -8,7 +8,7 @@ It is recommended to view the web page instead because it contains images with a
 The video on YouTube that shows this demonstration: 
 https://www.youtube.com/watch?v=P4vRNH7GJuc
 
-This guide shows how to use TradingView to send a Chart Alert to a Private Telegram Chat or Group Chat using a Telegram Bot. No code is necessary and it is straight forward to set up if you follow this guide. TradingView already has the necessary functionality built in for sending a HTTP POST request. You just need to specify where this request goes, here we will use the Telegram Bot API. The only limitation TradingView has at the time of this video being published is that TradingView is not capable of dynamically taking a real-time screenshot of the chart when a chart alert is triggered. This functionality is fully working in another study that exists in Sierra Chart.
+This guide shows how to use TradingView to send a Chart Alert to a Private Telegram Chat or Group Chat using a Telegram Bot. No code is necessary and it is straight forward to set up if you follow this guide. TradingView already has the necessary functionality built in for sending a HTTP POST request. You just need to specify where this request goes, here we will use the Telegram Bot API. The only limitation TradingView has at the time of this post being published is that TradingView is not capable of dynamically taking a real-time screenshot of the chart when a chart alert is triggered. This functionality is fully working in another study that exists in Sierra Chart.
 
 Why would someone do this since TradingView already is capable of email and push notifications?
 
