@@ -1,4 +1,6 @@
-This advanced custom study was written by Guitarmadillo at VerrilloTrading in Q3-Q4 of 2023. This study is open source and it can serve as an example for how to use a Telegram Bot with Sierra Chart. To compile this study users will need to include the necessary dependencies like boost::format and CURL. I tried as much as possible to stick to the Sierra Chart libraries but some things are much more practical with other c++ libraries. For example, there are very few existing examples of HTTP POST functionality using ACSIL. The study provides an example of this in combination with nlohmann json to prepare the request body. CURL was necessary to perform the sendPhoto Telegram method for sending multipart/form data. Anyone is welcome to repurpose the code, improve it or add functionality.
+Info About the Code: 
+
+This advanced custom study was written by VerrilloTrading in Q3-Q4 of 2023. This study is open source and it can serve as an example for how to use a Telegram Bot with Sierra Chart. To compile this study users will need to include the necessary dependencies like boost::format and CURL. I tried as much as possible to stick to the Sierra Chart libraries but some things are much more practical with other c++ libraries. For example, there are very few existing examples of HTTP POST functionality using ACSIL. The study provides an example of this in combination with nlohmann json to prepare the request body. CURL was necessary to perform the sendPhoto Telegram method for sending multipart/form data. Anyone is welcome to repurpose the code, improve it or add functionality.
 
 This study contains two examples of sending a http post request from Sierra Chart.
 1. using CURL to call the Telegram sendPhoto method where the chart image is passed as multipart/form data.
@@ -10,6 +12,8 @@ Reasons for sharing the source code:
 1. Greater Transparency
 2. Helps the community
 3. Show off skills and features in Sierra Chart
+
+Info for Users:
 
 If you want to use this study and do not want to bother building it yourself you can send an email to support@verrillotrading.com with your Sierra Chart username and I will add your username to the list of allowed users for this DLL. When your username is added to this list the file will appear in your Sierra Chart Data Folder the next time you start Sierra Chart. The DLL has been compiled using this exact source code file **(except one change) and a build script. 
 
