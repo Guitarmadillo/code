@@ -44,6 +44,8 @@ int send_photo(const SCString& URL, const std::string& ChatID, const std::string
 		"photo", CURLFORM_FILE, FilePath.c_str(), CURLFORM_END);
 		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
 		"caption", CURLFORM_COPYCONTENTS, caption.c_str(), CURLFORM_END);
+		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
+		"parse_mode", CURLFORM_COPYCONTENTS, "HTML", CURLFORM_END);
 
 		// Set the URL
 		curl_easy_setopt(curl, CURLOPT_URL, URL.GetChars());
@@ -605,10 +607,32 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 					std::size_t text_start_pos = line.find("Chart Drawing");
 					std::size_t text_end_pos = line.find('|', text_start_pos);
 
-					// Removed DATE TIME because Bar Date Time showed the correct time 
-					/* std::size_t datetime_start_pos = line.find("DateTime"); */
-					/* std::size_t datetime_end_pos = line.find('|', datetime_start_pos); */
+					// ADD MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
+					// Get Iterators to the Price (there are two prices in the alert text)
+					
+					// We start from the end of the string and work our way back (safest way)
+					std::size_t price2_end_pos = line.rfind(')', text_end_pos);
+					std::size_t price2_start_pos = line.rfind('(', price2_end_pos);
 
+					// Insert text for price2 formatting 
+					line.insert(price2_end_pos, "</code>");
+					line.insert(price2_start_pos + 1, "<code>"); 
+					
+					// reset the iterator for price2_start_pos in order to safely get price1 iterators
+					price2_start_pos = line.rfind('(', text_end_pos);
+
+					// Get the iterators for price1
+					std::size_t price1_end_pos = line.rfind(')', price2_start_pos);
+					std::size_t price1_start_pos = line.rfind('(', price1_end_pos);
+					
+					// Insert text for price1 formatting
+					line.insert(price1_end_pos, "</code>");
+					line.insert(price1_start_pos + 1, "<code>"); 
+
+					// once done inserting the text, RESET Alert Text End Position to the new correct iterator
+					text_end_pos = line.find('|', text_start_pos);
+
+					// continue with the other substrings
 					std::size_t bar_datetime_start_pos = line.find("Bar date-time");
 					std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos);
 
@@ -640,8 +664,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// without copying any of the data (lightweight) 
 						std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 						std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-						/* std::string_view datetime_string (line.c_str() + datetime_start_pos, */
-						/* datetime_end_pos - datetime_start_pos); */
 						std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 						bar_datetime_end_pos - bar_datetime_start_pos);
 						std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
@@ -894,10 +916,32 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								std::size_t text_start_pos = line.find("Chart Drawing");
 								std::size_t text_end_pos = line.find('|', text_start_pos);
 
-								// REMOVED THE DATE TIME because Bar Date Time was the correct time
-								/* std::size_t datetime_start_pos = line.find("DateTime"); */
-								/* std::size_t datetime_end_pos = line.find('|', datetime_start_pos); */
+								// ADD MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
+								// Get Iterators to the Price (there are two prices in the alert text)
+								
+								// We start from the end of the string and work our way back (safest way)
+								std::size_t price2_end_pos = line.rfind(')', text_end_pos);
+								std::size_t price2_start_pos = line.rfind('(', price2_end_pos);
 
+								// Insert text for price2 formatting 
+								line.insert(price2_end_pos, "</code>");
+								line.insert(price2_start_pos + 1, "<code>"); 
+
+								// reset the iterator for price2_start_pos in order to safely get price1 iterators
+								price2_start_pos = line.rfind('(', text_end_pos);
+
+								// Get the iterators for price1
+								std::size_t price1_end_pos = line.rfind(')', price2_start_pos);
+								std::size_t price1_start_pos = line.rfind('(', price1_end_pos);
+								
+								// Insert text for price1 formatting
+								line.insert(price1_end_pos, "</code>");
+								line.insert(price1_start_pos + 1, "<code>"); 
+
+								// once done inserting the text, RESET Alert Text End Position to the new correct iterator
+								text_end_pos = line.find('|', text_start_pos);
+
+								// continue with the other substrings
 								std::size_t bar_datetime_start_pos = line.find("Bar date-time");
 								std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos);
 
@@ -929,9 +973,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// without copying any of the data (lightweight) 
 									std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 									std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-									// REMOVED THE DATE TIME because Bar Date Time was the correct time
-									/* std::string_view datetime_string (line.c_str() + datetime_start_pos, */
-									/* datetime_end_pos - datetime_start_pos); */
 									std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 									bar_datetime_end_pos - bar_datetime_start_pos);
 									std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
@@ -1034,13 +1075,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 										// Take a screen shot and put it in our logs folder directory for safety 
 										sc.SaveChartImageToFileExtended(sc_alert_chart_num, SC_FilePathName, 0,0,0);
-
-										// Precaution: Open the image file for reading to ensure it exists
-										/* std::ifstream file(FilePath, std::ios::binary); */
-										/* if (!file.is_open()) */ 
-										/* { */
-										/* 	sc.AddMessageToLog("Error opening image file!",1); */
-										/* } */
 
 										// Close the image file
 										file.close();
