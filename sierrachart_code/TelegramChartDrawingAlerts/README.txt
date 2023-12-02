@@ -11,7 +11,7 @@ Reasons for sharing the source code:
 2. Helps the community
 3. Show off skills and features in Sierra Chart
 
-If you want to use this study and do not want to bother building it yourself you can send an email to support@verrillotrading.com with your Sierra Chart username and I will add your username to the list of allowed users for this DLL. The DLL has been compiled using this exact source code file **(except one change) and a build script.
+If you want to use this study and do not want to bother building it yourself you can send an email to support@verrillotrading.com with your Sierra Chart username and I will add your username to the list of allowed users for this DLL. When your username is added to this list the file will appear in your SierraChart Data Folder the next time you start Sierra Chart. The DLL has been compiled using this exact source code file **(except one change) and a build script. 
 
 ** For convenience purposes The DLL provided by VerrilloTrading provides a default bot that users can rely on instead of having to create their own bot. The bot token for that bot was removed from the repository for security reasons.
 
