@@ -232,7 +232,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	if(Input_Enabled.GetBoolean() == 0)
 	{
 		// debug 
-		sc.AddMessageToLog("Error: Study is disabled.",1);
+		// sc.AddMessageToLog("Error: Study is disabled.",1);
 		return; // the study is turned off
 	}
 
