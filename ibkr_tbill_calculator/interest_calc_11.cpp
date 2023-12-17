@@ -212,7 +212,7 @@ double USDT_Lending(float daily_int_rate, float daily_profit, float principal, i
 
 // This calculation is used to determine what is the optimal T-Bill maturity based upon the current
 // interest rate and amount of principal capital 
-void example_31(float daily_int_rate, float daily_profit, float principal, int num_reinvests)
+void example_31(float daily_profit)
 {
 	// For T-Bills on IBKR It is necessary to earn 1000 plus the trade fee
 	// before reinvesting again or else the reinvestment will only hurt the
@@ -325,7 +325,7 @@ int main()
 	}
 
 	// Figure out how many days is necessary to make 1000
-	example_31(daily_int_rate, daily_profit, principal, num_reinvests);
+	example_31(daily_profit);
 
 	// EXAMPLE 3 (see USDT_Lending())
 	/* double example3_profit = USDT_Lending(daily_int_rate, daily_profit, principal, num_reinvests); */
