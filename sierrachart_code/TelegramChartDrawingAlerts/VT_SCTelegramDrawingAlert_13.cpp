@@ -989,11 +989,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						if(sc_alert_chartbook == current_chartbook)
 						{
 							// the alert came from the same chartbook as where this study exists
-							//
-							// TODO: Think of a way to determine if there is a double instance of this study somewhere
-							// else in the chartbook and notify the user where it is so they can remove it. 
-							// (might be more overhead, it could be a debug feature that they can turn on ) 
-							//
 							// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 							if(Input_FindDuplicateStudies.GetBoolean() == 1)
 							{
@@ -1049,12 +1044,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								{"text", std::move(line)},
 								/* {"parse_mode", "Markdown"}, */	
 								}; 
-
-								// TODO Low priority: Write logic to handle the necessary escape
-								// sequences in the Alert Text as well as Source
-								// text strings that are extracted from the alert
-								// log line text. In order to regain compatibility
-								// with MarkDown text formatting.
 								
 								// Convert Json into SCString in one line. 
 								SCString query = object.dump().c_str(); 						
@@ -1368,11 +1357,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									if(sc_alert_chartbook == current_chartbook)
 									{
 										// the alert came from the same chartbook as where this study exists
-										//
-										// TODO: Determine if there is a double instance of this study somewhere
-										// else in the chartbook and notify the user where it is so they can remove it. 
-										// (might be more overhead, it could be a debug feature that they can turn on ) 
-										//
 										// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 										if(Input_FindDuplicateStudies.GetBoolean() == 1)
 										{
