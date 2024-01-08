@@ -1,5 +1,7 @@
 Sierra Chart Custom Study: Telegram Chart & Drawing Alerts
-This video demonstrates the usage and set up of this Advanced Custom Study: https://youtu.be/EQZI9pBtDrE
+This video demonstrates set up and basic usage of this Custom Study: https://youtu.be/EQZI9pBtDrE
+
+This video shows Chart/Study Alerts and how to search for multiple instances of the study: https://youtu.be/xL4b8tFMi7k
 
 This source code for this study can be viewed and downloaded here: https://github.com/Guitarmadillo/code/tree/main/sierrachart_code/TelegramChartDrawingAlerts
 
@@ -77,19 +79,32 @@ Usage Across Multiple Chartbooks:
 
 The screenshot function from Sierra Chart is limited to taking screenshots of charts in the chartbook where the function call originates from. For this reason it is necessary to have 1 instance of this study open per chartbook. If you have 5 open chartbooks with different symbols waiting for alerts, you will need to open this study on a chart in each one of those chartbooks. When the study is active in any particular chartbook it will handle all the alerts that take place within that chartbook and provide an image of the chart as it is displayed in the chartbook. The chart can be hidden behind other charts and the screenshot will work as long as Destroy Chart Windows When Hidden is disabled.
 
+Using Duplicates of This Study Within the Same Chartbook:
+
+One viable use case for having more than one instance of this study open in the same chartbook is to send the same alerts to multiple Telegram chats at the same time. In this case it is necessary to configure the each study with valid settings and use a different Telegram Chat ID for each instance of the study. If the same Chat ID is used on two or more of these studies, the user will get duplicate alerts sent to the same chat.
+
 Detecting Duplicates of This Study Within the Same Chartbook:
 
-It is necessary to keep no more than 1 instance of this study per open chartbook. If the user added the study more than once by accident, this will result in the user recieving duplicate alerts on Telegram. This study contains a feature which can detect if another instance of this study exists within the same chartbook.
+If the user added the study more than once by accident, they can enable a feature that provides the user with the chart numbers of any chart containing the Telegram Chart & Drawing Alerts study within the same chartbook.
 
-1. It is necessary to be on the newest version of the study.
-2. Enable Study Input #9 which is named Find Duplicate Studies in Current Chartbook.
-3. Open the Sierra Chart Message Log by going to Window > Message Log.
-4. Create and trigger a Chart Drawing or Chart Alert and monitor the Message Log.
-5. Look out for a message that looks like this:
+1. Enable Study Input #9 which is named Find Duplicate Studies in Current Chartbook.
+2. Open the Sierra Chart Message Log by going to Window > Message Log.
+3. Create and trigger a Chart Drawing or Chart Alert and monitor the Message Log.
+4. Look out for a message that looks like this:
 
-“A duplicate of Telegram Chart Drawing Alerts study is detected in the same chartbook. This duplicate was found on chart number (here it tells you the chart number). Reduce the number of instances of this study to one per chartbook, or you will recieve double alerts.”
+“A duplicate is found on chart #(chart number here). Reduce the number of studies per chartbook to one unless you wish to recieve duplicate alerts.”
 
-6. Then you can proceed to Window > Windows and Chartbooks, select the chart that has this chart number and remove the study from this chart.
+5. Then you can proceed to Window > Windows and Chartbooks, select the chart that has this chart number and remove the study from this chart.
+
+How to tell if Alerts are not going through to Telegram:
+
+It is fully possible that users are able to find a bug in the study where an alert is not being recieved on Telegram. One reason for this might be a particular text that is not in agreement with the Telegram Text formatting being used.
+
+1. Open the SC Alert Manager by going to Window > Alert Manager.
+
+2. Monitor the alerts being added to the Alert Manager.
+
+3. If you are encountering a particular alert that is not going through to Telegram, please inform the study developer at support@verrillotrading.com as soon as possible.
 
 INFO ABOUT THE LOG FILE PATH:
 
@@ -108,5 +123,3 @@ For any issues or inquiries, send them to support@verrillotrading.com
 Thank you and enjoy the study!
 
 -VerrilloTrading, Content Creator – Programmer
-
-© 2023 VerrilloTrading Inc. All Rights Reserved.
