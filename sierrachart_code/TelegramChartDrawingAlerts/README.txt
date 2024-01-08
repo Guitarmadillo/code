@@ -39,7 +39,7 @@ It is necessary to be running Sierra Chart Version 2566 or higher to use this st
 For this study to work it is necessary to Enable this setting in Sierra Chart:
 Global Settings >> Log >> Save Alerts Log to File
 
-When a Chart Drawing Alert is triggered, a new line is written to a file in the C:\SierraChart\Logs directory. The path to this Folder is relative to where you have Sierra Chart installed. It is also possible that this Logs Folder does not exist yet. Follow the next steps to ensure this folder exists.
+When an Alert is triggered, a new line is written to a file in the C:\SierraChart\Logs directory. The path to this Folder is relative to where you have Sierra Chart installed. It is also possible that this Logs Folder does not exist yet. Follow the next steps to ensure this folder exists.
 
 When putting the study on the chart for the first time it will provide instructions in the message log. The first message will inform the user to enter the Telegram Chat ID.
 
