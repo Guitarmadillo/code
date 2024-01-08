@@ -886,12 +886,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// add this chart number to the vector 
 										chart_numbers.push_back(ChartNumber);
 									}
-
-									// debug 
-									/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-									/* "Study ID returned for each chart in chartbook: %d", */ 
-									/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-									/* sc.AddMessageToLog(msg, 1); */
 								}	
 
 								// iterate through the existing number of charts with chart numbers as values  
@@ -1150,12 +1144,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// add this chart number to the vector 
 										chart_numbers.push_back(ChartNumber);
 									}
-
-									// debug 
-									/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-									/* "Study ID returned for each chart in chartbook: %d", */ 
-									/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-									/* sc.AddMessageToLog(msg, 1); */
 								}	
 
 								// iterate through the existing number of charts with chart numbers as values  
@@ -1635,12 +1623,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 													// add this chart number to the vector 
 													chart_numbers.push_back(ChartNumber);
 												}
-
-												// debug 
-												/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-												/* "Study ID returned for each chart in chartbook: %d", */ 
-												/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-												/* sc.AddMessageToLog(msg, 1); */
 											}	
 
 											// iterate through the existing number of charts with chart numbers as values  
@@ -1898,12 +1880,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 													// add this chart number to the vector 
 													chart_numbers.push_back(ChartNumber);
 												}
-
-												// debug 
-												/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-												/* "Study ID returned for each chart in chartbook: %d", */ 
-												/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-												/* sc.AddMessageToLog(msg, 1); */
 											}	
 
 											// iterate through the existing number of charts with chart numbers as values  
