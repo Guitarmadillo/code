@@ -1,6 +1,6 @@
 Sierra Chart Custom Study: Telegram Chart & Drawing Alerts
-This video demonstrates set up and basic usage of this Custom Study: https://youtu.be/EQZI9pBtDrE
 
+This video demonstrates set up and basic usage of this Custom Study: https://youtu.be/EQZI9pBtDrE
 This video shows Chart/Study Alerts and how to search for multiple instances of the study: https://youtu.be/xL4b8tFMi7k
 
 This source code for this study can be viewed and downloaded here: https://github.com/Guitarmadillo/code/tree/main/sierrachart_code/TelegramChartDrawingAlerts
