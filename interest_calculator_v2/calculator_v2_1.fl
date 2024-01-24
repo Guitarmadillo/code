@@ -1,0 +1,1062 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0400
+header_name {.h}
+code_name {.cxx}
+decl {\#include <stdlib.h>} {private local
+}
+
+decl {\#include <iostream>} {private local
+}
+
+decl {\#include "sqlite3.h"} {public local
+}
+
+decl {\#include <boost/format.hpp>} {private local
+}
+
+decl {\#include <array>} {private local
+}
+
+decl {\#include <FL/Fl_Text_Buffer.H>} {private local
+}
+
+decl {\#include <FL/Fl_PNG_Image.H>} {private local
+}
+
+decl {\#include <FL/fl_ask.H>} {private local
+}
+
+comment {
+This application is the first program I've written using fltk and fluid.
+So far I dig fltk 1.4 quite a bit. 
+
+The goal of the application is allow the user to get a yearly average rate
+of return that takes multiple currency or fixed income positions into account.
+
+The program currently allows the user to input two currency positions, 
+a fixed income position, and a 3rd currency position.
+
+currency 1 and 2 can be either positive or negative, currency 3 can 
+only be the result of one of the short currencies. 
+} {in_source in_header
+}
+
+comment {// sqlite objects} {in_source in_header
+}
+
+decl {char* err; sqlite3* db; const char* dbPath = "config.db"; sqlite3_stmt* stmt;} {private local
+}
+
+Function {load_CB(Fl_Widget*w, void* userdata)} {open
+} {
+  code {// POPULATE SAVED INPUT VALUES FROM DATABASE 
+
+// open db
+sqlite3_open(dbPath, &db);
+
+const char* checkTableExistsQuery = "SELECT name FROM sqlite_master WHERE type='table' AND name='MAINWINDOW_INPUTS';";
+
+if (sqlite3_prepare_v2(db, checkTableExistsQuery, -1, &stmt, nullptr) == SQLITE_OK) 
+{
+	if (sqlite3_step(stmt) == SQLITE_ROW) 
+	{
+		/* std::cout << "Table exists!" << std::endl; */
+
+		// FINALIZE before going to next prepared statement 
+		int finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+
+		// prepare statement to obtain values from the DB 
+		sqlite3_prepare_v2(db, "SELECT * from MAINWINDOW_INPUTS LIMIT 1", -1, &stmt, 0); 
+
+		while(sqlite3_step(stmt) != SQLITE_DONE) 
+		{ 
+			const unsigned char* currency1size = sqlite3_column_text(stmt, 1);	
+			input_currency1size->value((const char*)currency1size);
+
+			const unsigned char* currency1rate = sqlite3_column_text(stmt, 2);	
+			input_currency1rate->value((const char*)currency1rate);
+
+			const unsigned char* currency2size = sqlite3_column_text(stmt, 3);	
+			input_currency2size->value((const char*)currency2size);
+
+			const unsigned char* currency2rate = sqlite3_column_text(stmt, 4);	
+			input_currency2rate->value((const char*)currency2rate);
+
+			const unsigned char* currency3size = sqlite3_column_text(stmt, 5);	
+			input_currency3size->value((const char*)currency3size);
+
+			const unsigned char* currency3rate = sqlite3_column_text(stmt, 6);	
+			input_currency3rate->value((const char*)currency3rate);
+
+			const unsigned char* tbillsize = sqlite3_column_text(stmt, 7);	
+			input_tbillsize->value((const char*)tbillsize);
+
+			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
+			input_tbillrate->value((const char*)tbillrate);
+
+			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
+			input_newfxrate->value((const char*)newfxrate);
+		}
+
+		// The application must finalize every prepared statement in order to avoid resource leaks.
+		// // finalize second statement 
+		finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+	} 
+	/* else */ 
+	/* { */
+	/* 	std::cout << "Table does not exist. Gracefully doing nothing..." << std::endl; */
+	/* } */
+
+} 
+else 
+{
+	std::cerr << "Error preparing SQL statement" << std::endl;
+}
+
+sqlite3_close(db); // close the database} {}
+}
+
+Function {save_CB(Fl_Widget*w, void* userdata)} {open
+} {
+  code {// Set up to read existing sqlite3 database (or create if not exists)
+	
+std::string_view tbillsize = input_tbillsize->value() ;
+const std::string& currency1size = input_currency1size->value();
+std::string_view currency2size = input_currency2size->value();
+std::string_view currency3size = input_currency3size->value();
+
+// the yearly interest rates are obtained as doubles
+std::string_view tbillrate = input_tbillrate->value() ;
+std::string_view currency1rate = input_currency1rate->value();
+std::string_view currency2rate = input_currency2rate->value();
+std::string_view currency3rate = input_currency3rate->value();
+
+// obtain fx rate change values 
+std::string_view newfxrate = input_newfxrate->value() ;
+
+// debug 
+/* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
+/* " 1size: " << currency1size << " 1rate: " << currency1rate << " 2size: " << */ 
+/* currency2size << " 2rate: " << currency2rate << " 3size: " */ 
+/* << currency3size << " 3rate: " << currency3rate << std::endl; */
+
+/* std::cout << "new fx rate: " << newfxrate << std::endl; */
+
+// open the database
+sqlite3_open(dbPath, &db);
+
+// Create the table 
+const char* sql = "CREATE TABLE IF NOT EXISTS MAINWINDOW_INPUTS("
+	"ID INTEGER PRIMARY KEY, "
+	"CURRENCY1SIZE TEXT, "
+	"CURRENCY1RATE TEXT, "
+	"CURRENCY2SIZE TEXT, "
+	"CURRENCY2RATE TEXT, "
+	"CURRENCY3SIZE TEXT, "
+	"CURRENCY3RATE TEXT, "
+	"TBILLSIZE TEXT, "
+	"TBILLRATE TEXT, "
+	"FXRATECHANGE TEXT);";
+
+int result = sqlite3_exec(db, sql, NULL, 0, &err);
+if(result != SQLITE_OK)
+{
+	/* std::cout << "error creating table: " << err << std::endl; */
+	sqlite3_free(err); // need to look into that function
+}
+
+// ADD OR REPLACE THE ROW IN OUR TABLE 
+const std::string insert_sql = "INSERT OR REPLACE INTO MAINWINDOW_INPUTS (ID, CURRENCY1SIZE, CURRENCY1RATE, CURRENCY2SIZE, CURRENCY2RATE, CURRENCY3SIZE, CURRENCY3RATE, TBILLSIZE, TBILLRATE, FXRATECHANGE)" 
+ " VALUES((SELECT ID FROM MAINWINDOW_INPUTS LIMIT 1),'"+ std::string(input_currency1size->value()) +"', '"+ std::string(input_currency1rate->value()) +"', '"+ std::string(input_currency2size->value()) +"', '"+ std::string(input_currency2rate->value()) +"', '"+ std::string(input_currency3size->value()) +"', '"+ std::string(input_currency3rate->value()) +"', '"+ std::string(input_tbillsize->value()) +"', '"+ std::string(input_tbillrate->value()) +"', '"+ std::string(input_newfxrate->value()) +"');"; 
+
+/* std::cout << "sql debug: " << insert_sql << std::endl; */
+
+result = sqlite3_exec(db, insert_sql.c_str(), NULL, 0, &err); 
+if(result != SQLITE_OK) 
+{ 
+	std::cout << "error with insert: " << err << std::endl; 
+	sqlite3_free(err); // need to look into that function 
+} 
+else
+{
+	/* std::cout << "inserted: " << result << std::endl; */
+}
+	
+sqlite3_close(db); // close the database} {}
+}
+
+Function {clear_CB(Fl_Widget*w, void* userdata)} {open
+} {
+  code {// this callback will reset the items in the input fields and clear what is in the SQLite3 database.
+//// POPULATE SAVED INPUT VALUES FROM DATABASE 
+
+// open db
+sqlite3_open(dbPath, &db);
+
+const char* checkTableExistsQuery = "SELECT name FROM sqlite_master WHERE type='table' AND name='MAINWINDOW_INPUTS';";
+
+if (sqlite3_prepare_v2(db, checkTableExistsQuery, -1, &stmt, nullptr) == SQLITE_OK) 
+{
+	if (sqlite3_step(stmt) == SQLITE_ROW) 
+	{
+		/* std::cout << "Table exists!" << std::endl; */
+
+		// FINALIZE before going to next prepared statement 
+		int finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+
+		// prepare statement to obtain values from the DB 
+		sqlite3_prepare_v2(db, "SELECT * from MAINWINDOW_INPUTS LIMIT 1", -1, &stmt, 0); 
+
+		while(sqlite3_step(stmt) != SQLITE_DONE) 
+		{ 
+			const unsigned char* currency1size = sqlite3_column_text(stmt, 1);	
+			input_currency1size->value("");
+
+			const unsigned char* currency1rate = sqlite3_column_text(stmt, 2);	
+			input_currency1rate->value("");
+
+			const unsigned char* currency2size = sqlite3_column_text(stmt, 3);	
+			input_currency2size->value("");
+
+			const unsigned char* currency2rate = sqlite3_column_text(stmt, 4);	
+			input_currency2rate->value("");
+
+			const unsigned char* currency3size = sqlite3_column_text(stmt, 5);	
+			input_currency3size->value("");
+
+			const unsigned char* currency3rate = sqlite3_column_text(stmt, 6);	
+			input_currency3rate->value("");
+
+			const unsigned char* tbillsize = sqlite3_column_text(stmt, 7);	
+			input_tbillsize->value("");
+
+			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
+			input_tbillrate->value("");
+
+			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
+			input_newfxrate->value("");
+		}
+
+		// The application must finalize every prepared statement in order to avoid resource leaks.
+		// // finalize second statement 
+		finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+
+	} 
+	/* else */ 
+	/* { */
+	/* 	std::cout << "Table does not exist. Gracefully doing nothing..." << std::endl; */
+	/* } */
+} 
+else 
+{
+	std::cerr << "Error preparing SQL statement" << std::endl;
+}
+
+sqlite3_close(db); // close the database} {}
+}
+
+Function {Calculate_CB(Fl_Widget*w, void* userdata)} {open return_type {static void}
+} {
+  Fl_Window response_window {
+    label {Currency Spread Calculator V2 - Results} open
+    xywh {940 440 441 309} type Double align 80
+    code0 {response_window->show();} non_modal visible
+  } {
+    Fl_Flex {} {open
+      xywh {6 19 427 67} type HORIZONTAL
+    } {
+      Fl_Text_Display c1_output {
+        label {Currency 1}
+        xywh {6 19 214 67} box OXY_UP_FRAME labelcolor 96 align 161 textcolor 32
+        code0 {c1_output->wrap_mode(4,0);}
+      }
+      Fl_Text_Display c2_output {
+        label {Currency 2}
+        xywh {220 19 213 67} box OXY_UP_FRAME textcolor 32
+        code0 {c2_output->wrap_mode(4,0);}
+      }
+    }
+    Fl_Flex {} {open
+      xywh {6 106 427 67} type HORIZONTAL
+    } {
+      Fl_Text_Display c3_output {
+        label {Currency 3 (Long Only)}
+        xywh {6 106 214 67} box OXY_UP_FRAME textcolor 32
+        code0 {c3_output->wrap_mode(4,0);}
+      }
+      Fl_Text_Display tbill_output {
+        label {Fixed Income}
+        xywh {220 106 213 67} box OXY_UP_FRAME textcolor 32
+        code0 {tbill_output->wrap_mode(4,0);}
+      }
+    }
+    Fl_Text_Display blended_output {
+      label {Total Return / Cost to Cover}
+      xywh {10 193 421 108} box SHADOW_BOX color 34 selection_color 7 textsize 15 textcolor 55
+      code0 {blended_output->wrap_mode(4,0);}
+    }
+  }
+  code {// Code that will be called when we press the calculate button 
+//
+// Some of the calculations are borrowed from int calculator v1
+// The first thing we should do is safely obtain all of the user inputs 
+// all amounts are obtained as doubles
+//
+// const char* myvalue = input_currency1size->value(); Convert the const char*
+// to double (this function automatically removes invalid characters from the
+// end of the double
+
+double tbillsize = std::strtod(input_tbillsize->value(), nullptr);
+double currency1size = std::strtod(input_currency1size->value(), nullptr);
+double currency2size = std::strtod(input_currency2size->value(), nullptr);
+double currency3size = std::strtod(input_currency3size->value(), nullptr);
+
+// the yearly interest rates are obtained as doubles
+double tbillrate = std::strtod(input_tbillrate->value(), nullptr) / 100;
+double currency1rate = std::strtod(input_currency1rate->value(), nullptr) / 100;
+double currency2rate = std::strtod(input_currency2rate->value(), nullptr) / 100;
+double currency3rate = std::strtod(input_currency3rate->value(), nullptr) / 100;
+
+// obtain fx rate change values 
+double newfxrate = std::strtod(input_newfxrate->value(), nullptr);
+
+// debug 
+/* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
+/* " 1size: " << currency1size << " 1rate: " << currency1rate << " 2size: " << */ 
+/* currency2size << " 2rate: " << currency2rate << " 3size: " */ 
+/* << currency3size << " 3rate: " << currency3rate << std::endl; */
+
+// debug 
+/* std::cout << "new fx rate: " << newfxrate << std::endl; */
+
+double blended_one_year_profit = 0;
+double total_currency = 0;
+double blended_percent_return = 0;
+
+// values will be 0 if they have not been set by the user.
+if(tbillsize != 0)
+{
+	// only count positive currencies 
+	if(tbillsize > 0)
+	{
+		total_currency += tbillsize;
+	}
+
+	// solve for the daily int rate 
+	double daily_int_rate = tbillrate / 365;
+
+	// set a trade fee to subtract 
+	double trade_fee = 7.5;
+
+	// calculate one year rate of return 
+	double one_year_profit = (tbillsize * tbillrate) - trade_fee;
+
+	// solve for one year percent rate of return 
+	double final_percent_return = (one_year_profit / tbillsize) * 100;
+
+	// debug 
+	/* std::cout << "TBill One year Profit was: " << one_year_profit << std::endl; */
+	/* std::cout << "TBill final return was: " << final_percent_return */ 
+	/* << "%" << std::endl; */
+
+	boost::format fmt = boost::format("Position Size: $%1%\\nInterest Rate: %2%%%\\n"
+	"One Year P/L: $%3%") %tbillsize %final_percent_return %one_year_profit ;
+
+	std::string tbill_result = fmt.str();
+
+	// create buffer and assign it to the appropriate text display widget 
+	Fl_Text_Buffer *tbill_buffer = new Fl_Text_Buffer();
+	tbill_output->buffer(tbill_buffer);
+
+	// add the text to our buffer (to the box)
+	tbill_buffer->text(tbill_result.c_str());
+
+	// append the values to our total
+	blended_one_year_profit += one_year_profit;
+	/* blended_percent_return += final_percent_return; */
+}
+
+// so basically we want to calculate the rate of return for each position 
+// and then get the sum of those rate of returns to get the total rate 
+//
+if(currency1size != 0)
+{
+	if(currency1size > 0)
+	{
+		total_currency += currency1size;
+	}
+
+	/* std::cout << "total currency: " << total_currency << std::endl; */
+
+	// solve for the daily int rate 
+	double daily_int_rate = currency1rate / 365;
+
+	// set a trade fee to subtract 
+	/* double trade_fee = 7.5; */
+
+	// calculate one year rate of return 
+	double one_year_profit = (currency1size * currency1rate) ;
+
+	// solve for one year percent rate of return 
+	double final_percent_return = (one_year_profit / currency1size) * 100;
+
+	// debug 
+	/* std::cout << "Currency 1 One year Profit/Loss was: " << one_year_profit */ 
+	/* << std::endl; */
+	/* std::cout << "Currency 1 final return was: " << final_percent_return */ 
+	/* << "%" << std::endl; */
+
+	boost::format fmt = boost::format("Position Size: $%1%\\nInterest Rate: %2%%%\\n"
+	"One Year P/L: $%3%") %currency1size %final_percent_return %one_year_profit ;
+
+	std::string c1_result = fmt.str();
+
+	/* std::cout << c1_result << std::endl; */
+
+	// This should probably be global or at least in same scope as text displays
+	// create buffer and assign it to the appropriate text display widget 
+	Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+	c1_output->buffer(c1buff);
+
+	// add the text to our buffer (to the box)
+	c1buff->text(c1_result.c_str());
+
+	// append the values to our total
+	blended_one_year_profit += one_year_profit;
+	/* blended_percent_return += final_percent_return; */
+}
+
+if(currency2size != 0)
+{
+	if(currency2size > 0)
+	{
+		total_currency += currency2size;
+	}
+
+	/* std::cout << "total currency: " << total_currency << std::endl; */
+
+	// solve for the daily int rate 
+	double daily_int_rate = currency2rate / 365;
+
+	// set a trade fee to subtract 
+	/* double trade_fee = 7.5; */
+
+	// calculate one year rate of return 
+	double one_year_profit = (currency2size * currency2rate) ;
+
+	// solve for one year percent rate of return 
+	double final_percent_return = (one_year_profit / currency2size) * 100;
+
+	// debug 
+	/* std::cout << "Currency 2 One year Profit/Loss was: " << one_year_profit */ 
+	/* << std::endl; */
+	/* std::cout << "Currency 2 final return was: " << final_percent_return */ 
+	/* << "%" << std::endl; */
+
+	boost::format fmt = boost::format("Position Size: $%1%\\nInterest Rate: %2%%%\\n"
+	"One Year P/L: $%3%") %currency2size %final_percent_return %one_year_profit ;
+
+	std::string c2_result = fmt.str();
+
+	// create buffer and assign it to the appropriate text display widget 
+	Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+
+	c2_output->buffer(c2buff);
+
+	// add the text to our buffer (to the box)
+	c2buff->text(c2_result.c_str());
+
+	// append the values to our total
+	blended_one_year_profit += one_year_profit;
+}
+
+if(currency3size != 0)
+{
+	// only count positive currencies in our total capital 
+	if(currency3size > 0)
+	{
+		total_currency += currency3size;
+	}
+
+	/* std::cout << "total currency: " << total_currency << std::endl; */
+
+	// solve for the daily int rate 
+	double daily_int_rate = currency3rate / 365;
+
+	// set a trade fee to subtract 
+	/* double trade_fee = 7.5; */
+
+	// calculate one year rate of return 
+	double one_year_profit = (currency3size * currency3rate) ;
+
+	// solve for one year percent rate of return 
+	double final_percent_return = (one_year_profit / currency3size) * 100;
+
+	// debug 
+	/* std::cout << "Currency 3 One year Profit/Loss was: " << one_year_profit */ 
+	/* << std::endl; */
+	/* std::cout << "Currency 3 final return was: " << final_percent_return */ 
+	/* << "%" << std::endl; */
+
+	boost::format fmt = boost::format("Position Size: $%1%\\nInterest Rate: %2%%%\\n"
+	"One Year P/L: $%3%") %currency3size %final_percent_return %one_year_profit ;
+
+	std::string c3_result = fmt.str();
+
+	/* std::cout << c1_result << std::endl; */
+
+	// This should probably be global or at least in same scope as text displays
+	// create buffer and assign it to the appropriate text display widget 
+	Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+	c3_output->buffer(c3buff);
+
+	// add the text to our buffer (to the box)
+	c3buff->text(c3_result.c_str());
+
+	// append the values to our total
+	blended_one_year_profit += one_year_profit;
+	/* blended_percent_return += final_percent_return; */
+}
+
+// solve for blended percent return 
+blended_percent_return = (blended_one_year_profit / total_currency) * 100;
+
+// SOLVE FOR COST TO COVER IF APPLICABLE 
+double cost_to_cover = 0;
+
+// used for formatting 
+std::string result; 
+
+// They need to input something for functionality to work 
+if(newfxrate != 0)
+{
+	//NOTE: If the user plans to use this functionality, it is important that
+	//they put the two currencies in the correct sequence to get accurate
+	//result. If they input exchange rate of USD/CAD, Currency 1 must be USD
+	//and currency 2 must be CAD
+	//
+	// determine which is the negative currency 
+	if (currency1size < 0 && currency2size < 0)
+	{
+		// Get currency 2 cost to cover accounting for fx rate 
+		double currency2_cost_to_cover = std::abs(currency2size / newfxrate);	
+		// append it to currency1size to get total cost to cover both
+		// currencies in currency 1. 
+		cost_to_cover = std::abs(currency1size) + currency2_cost_to_cover;	
+
+		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
+		/* std::cout << "we get here both are negative: " << cost_to_cover << std::endl; */
+
+		double total_debt = currency1size + currency2size;
+
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%5%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%\\n"
+		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
+		%blended_one_year_profit % cost_to_cover %total_debt;
+
+		// write to the string
+		result = fmt.str();
+	}
+	else if(currency1size < 0)
+	{
+		// we want to determine how much it will cost to cover the negative balance
+		// given the projected fx rate
+
+		cost_to_cover = std::abs(currency1size) ;	
+		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
+		/* std::cout << "we get here currency 1 is negative: " << cost_to_cover << std::endl; */
+
+		double total_debt = currency1size ;
+
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%5%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%\\n"
+		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
+		%blended_one_year_profit % cost_to_cover %total_debt;
+
+		// write to the string
+		result = fmt.str();
+
+	}
+	else if (currency2size < 0)
+	{
+		// we want to determine how much it will cost to cover the negative balance
+		// given the projected fx rate
+		
+		cost_to_cover = std::abs(currency2size / newfxrate);	
+		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
+
+		double total_debt = currency2size ;
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%5%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%\\n"
+		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
+		%blended_one_year_profit % cost_to_cover %total_debt;
+
+		// write to the string
+		result = fmt.str();
+			/* std::cout << "we get here currency 2 is negative: " << cost_to_cover << std::endl; */
+	}
+}
+else
+{
+	// FORMAT WITHOUT COST TO COVER (user didn't enable) 
+	
+	// determine which is the negative currency 
+	if (currency1size < 0 && currency2size < 0)
+	{
+		double total_debt = currency1size + currency2size;
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%4%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%")
+		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
+
+		// write to the string
+		result = fmt.str();
+	}
+	else if(currency1size < 0)
+	{
+		double total_debt = currency1size ;
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%4%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%")
+		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
+
+		// write to the string
+		result = fmt.str();
+	}
+	else if(currency2size < 0)
+	{
+		double total_debt = currency2size ;
+		boost::format fmt = boost::format("Total Capital: $%1%\\nTotal Debt: $%4%\\n"
+		"Blended Interest Rate: %2%%%\\nOne Year P/L: $%3%")
+		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
+
+		// write to the string
+		result = fmt.str();
+	}
+	else
+	{
+		// no negative currencies 
+
+		boost::format fmt = boost::format("Total Capital: $%1%\\nBlended Interest Rate: %2%%%\\n"
+		"One Year P/L: $%3%") %total_currency %blended_percent_return %blended_one_year_profit ;
+	}
+}
+
+// debug 
+/* std::cout << "Total One Year Profit/Loss was: " << blended_one_year_profit */ 
+/* << std::endl; */
+/* std::cout << "Total return: " << blended_percent_return */ 
+/* << "%" << std::endl; */
+
+// create a new buffer 
+Fl_Text_Buffer *total_buffer = new Fl_Text_Buffer();
+
+// assign the buffer to a text display widget
+blended_output->buffer(total_buffer);
+
+// add the text to our buffer 
+total_buffer->text(result.c_str());} {}
+}
+
+Function {input_CB(Fl_Widget*w, void* userdata)} {open return_type {static void}
+} {
+  code {// system(input_currency1size->value());
+
+// Get the user data field from the widget to determine which input was pressed
+std::string_view which_input = (const char*)w->user_data();
+
+// debug
+/* std::cout << which_input << std::endl; */
+
+// create an array of all valid characters the user can enter 
+std::array<char, 13> valid_characters = {'0','1','2','3','4','5'
+,'6','7','8','9','%','-','.'};
+
+// set to false until proven otherwise
+bool invalid_character_found = false;
+
+if(which_input == "currency1size")
+{
+	// input_currency1size
+	std::string_view value = input_currency1size->value();
+	/* std::cout << "debug input: " << value << std::endl; */
+
+	// for each character in the string
+	for(int index = 0; index < value.size(); index++)
+	{
+		// compare current character of the input string against list of valid
+		// characters to see if the character is valid.
+		bool is_valid_character = false;
+
+		// iterate over valid characters array and remember if we got a match
+		for(int i = 0; i < valid_characters.size(); i++)
+		{	
+			if(value[index] == valid_characters[i])
+			{
+				// character is valid
+				is_valid_character = true;
+				break;
+			}
+		}
+		// if we went through the nested for loop and no valid match was found,
+		// it means we have found an invalid character at the current index. 
+		if(is_valid_character == false)
+		{
+			std::string_view new_value = value.substr(0, value.size() -1);
+
+			/* std::cout << "debug new string: " << new_value << std::endl; */
+			input_currency1size->value(std::string(new_value).c_str());
+		}
+	}
+}
+else if(which_input ==  "currency1rate")
+{
+	// input_currency1rate
+	std::string_view value = input_currency1rate->value();
+	/* std::cout << "debug input: " << value << std::endl; */
+
+	// for each character in the string
+	for(int index = 0; index < value.size(); index++)
+	{
+		// compare current character of the input string against list of valid
+		// characters to see if the character is valid.
+		bool is_valid_character = false;
+
+		// iterate over valid characters array and remember if we got a match
+		for(int i = 0; i < valid_characters.size(); i++)
+		{	
+			if(value[index] == valid_characters[i])
+			{
+				// character is valid
+				is_valid_character = true;
+				break;
+			}
+		}
+		// if we went through the nested for loop and no valid match was found,
+		// it means we have found an invalid character at the current index. 
+		if(is_valid_character == false)
+		{
+			std::string_view new_value = value.substr(0, value.size() -1);
+
+			/* std::cout << "debug new string: " << new_value << std::endl; */
+			input_currency1rate->value(std::string(new_value).c_str());
+		}
+	}
+}
+else if(which_input ==  "currency2size")
+{
+	// input_currency2size
+	std::string_view value = input_currency2size->value();
+
+	/* std::cout << "debug input: " << value << std::endl; */
+
+	// for each character in the string
+	for(int index = 0; index < value.size(); index++)
+	{
+		// compare current character of the input string against list of valid
+		// characters to see if the character is valid.
+		bool is_valid_character = false;
+
+		// iterate over valid characters array and remember if we got a match
+		for(int i = 0; i < valid_characters.size(); i++)
+		{	
+			if(value[index] == valid_characters[i])
+			{
+				// character is valid
+				is_valid_character = true;
+				break;
+			}
+		}
+		// if we went through the nested for loop and no valid match was found,
+		// it means we have found an invalid character at the current index. 
+		if(is_valid_character == false)
+		{
+			std::string_view new_value = value.substr(0, value.size() -1);
+
+			/* std::cout << "debug new string: " << new_value << std::endl; */
+			input_currency2size->value(std::string(new_value).c_str());
+		}
+	}
+}
+else if(which_input == "currency2rate")
+{
+	// input_currency2rate
+	std::string_view value = input_currency2rate->value();
+	/* std::cout << "debug input: " << value << std::endl; */
+
+	// for each character in the string
+	for(int index = 0; index < value.size(); index++)
+	{
+		// compare current character of the input string against list of valid
+		// characters to see if the character is valid.
+		bool is_valid_character = false;
+
+		// iterate over valid characters array and remember if we got a match
+		for(int i = 0; i < valid_characters.size(); i++)
+		{	
+			if(value[index] == valid_characters[i])
+			{
+				// character is valid
+				is_valid_character = true;
+				break;
+			}
+		}
+		// if we went through the nested for loop and no valid match was found,
+		// it means we have found an invalid character at the current index. 
+		if(is_valid_character == false)
+		{
+			std::string_view new_value = value.substr(0, value.size() -1);
+
+			/* std::cout << "debug new string: " << new_value << std::endl; */
+			input_currency2rate->value(std::string(new_value).c_str());
+		}
+	}
+}} {selected
+  }
+}
+
+Function {WinQuit_CB(Fl_Widget*, void*)} {open return_type {static void}
+} {
+  code {/* printf("Window Quit CALLBACK!\\n"); */
+exit(0);} {}
+}
+
+Function {} {open
+} {
+  Fl_Window window {
+    label {Currency Spread Calculator V2 - FLTK v1.4}
+    callback WinQuit_CB open
+    xywh {420 472 584 264} type Double align 80 hide resizable non_modal
+  } {
+    Fl_Group {} {open
+      xywh {4 7 574 252} box ENGRAVED_BOX
+    } {
+      Fl_Box {} {
+        label label
+        xywh {4 7 573 61} box OXY_BUTTON_DOWN_BOX labeltype NO_LABEL
+      }
+      Fl_Box {} {
+        label label
+        xywh {4 67 573 58} box OXY_BUTTON_DOWN_BOX color 28 labeltype NO_LABEL
+      }
+      Fl_Flex left_flex {open
+        xywh {175 8 101 117}
+      } {
+        Fl_Input input_currency1size {
+          label {Currency 1 position size:}
+          user_data {"currency1size"}
+          callback input_CB
+          xywh {175 8 101 30} when 1
+        }
+        Fl_Input input_currency1rate {
+          label {Currency 1 interest rate:}
+          user_data {"currency1rate"}
+          callback input_CB
+          xywh {175 38 101 29} when 1
+        }
+        Fl_Input input_currency3size {
+          label {Currency 3 position size:}
+          user_data {"currency3size"}
+          callback input_CB
+          xywh {175 67 101 29} when 1
+        }
+        Fl_Input input_currency3rate {
+          label {Currency 3 interest rate:}
+          user_data {"currency3rate"}
+          callback input_CB
+          xywh {175 96 101 29} when 1
+        }
+      }
+      Fl_Return_Button submit_button {
+        label Calculate
+        user_data {"calculate"}
+        callback Calculate_CB
+        tooltip {Press this once values are entered} xywh {433 210 133 37} box OXY_UP_BOX color 16 when 12
+      }
+      Fl_Button clear_button {
+        label {Clear All}
+        callback clear_CB
+        xywh {54 214 110 29} box OXY_UP_BOX color 31 labelcolor 55
+      }
+      Fl_Button save_button {
+        label Save
+        callback save_CB
+        xywh {303 210 120 37} box OXY_UP_BOX
+      }
+      Fl_Button load_button {
+        label Load
+        callback load_CB
+        xywh {174 210 120 37} box OXY_UP_BOX
+      }
+      Fl_Flex right_flex {open
+        xywh {450 8 128 118}
+      } {
+        Fl_Input input_currency2size {
+          label {Currency 2 position size:}
+          user_data {"currency2size"}
+          callback input_CB
+          xywh {450 8 128 30} when 1
+        }
+        Fl_Input input_currency2rate {
+          label {Currency 2 interest rate:}
+          user_data {"currency2rate"}
+          callback input_CB
+          xywh {450 38 128 30} when 1
+        }
+        Fl_Input input_tbillsize {
+          label {T-Bill position size:}
+          user_data {"tbillsize"}
+          callback input_CB
+          xywh {450 68 128 29} when 1
+        }
+        Fl_Input input_tbillrate {
+          label {T-Bill interest rate:}
+          user_data {"tbillrate"}
+          callback input_CB
+          xywh {450 97 128 29} when 1
+        }
+      }
+      Fl_Box {} {
+        label label
+        xywh {46 156 308 22} box OXY_BUTTON_DOWN_BOX color 255 selection_color 78 labeltype NO_LABEL hide
+      }
+      Fl_Box {} {
+        label label
+        xywh {45 146 418 43} box THIN_UP_FRAME color 40 selection_color 78 labeltype NO_LABEL
+      }
+      Fl_Input input_newfxrate {
+        label {Projected FX Rate Between Currency 1 && 2:}
+        user_data {"newfxrate"}
+        callback input_CB
+        xywh {354 156 99 23} box GTK_THIN_DOWN_BOX color 96 selection_color 50 labelsize 15 labelcolor 32 when 1 textcolor 55
+      }
+    }
+  }
+  code {// POPULATE SAVED INPUT VALUES FROM DATABASE 
+
+// open (ALREADY IN ABOVE CODE)
+sqlite3_open(dbPath, &db);
+
+const char* checkTableExistsQuery = "SELECT name FROM sqlite_master WHERE type='table' AND name='MAINWINDOW_INPUTS';";
+
+if (sqlite3_prepare_v2(db, checkTableExistsQuery, -1, &stmt, nullptr) == SQLITE_OK) 
+{
+	if (sqlite3_step(stmt) == SQLITE_ROW) 
+	{
+		/* std::cout << "Table exists!" << std::endl; */
+
+		// FINALIZE before going to next prepared statement 
+		int finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+
+		// prepare statement to obtain values from the DB 
+		sqlite3_prepare_v2(db, "SELECT * from MAINWINDOW_INPUTS LIMIT 1", -1, &stmt, 0); 
+
+		while(sqlite3_step(stmt) != SQLITE_DONE) 
+		{ 
+			const unsigned char* currency1size = sqlite3_column_text(stmt, 1);	
+			input_currency1size->value((const char*)currency1size);
+
+			const unsigned char* currency1rate = sqlite3_column_text(stmt, 2);	
+			input_currency1rate->value((const char*)currency1rate);
+
+			const unsigned char* currency2size = sqlite3_column_text(stmt, 3);	
+			input_currency2size->value((const char*)currency2size);
+
+			const unsigned char* currency2rate = sqlite3_column_text(stmt, 4);	
+			input_currency2rate->value((const char*)currency2rate);
+
+			const unsigned char* currency3size = sqlite3_column_text(stmt, 5);	
+			input_currency3size->value((const char*)currency3size);
+
+			const unsigned char* currency3rate = sqlite3_column_text(stmt, 6);	
+			input_currency3rate->value((const char*)currency3rate);
+
+			const unsigned char* tbillsize = sqlite3_column_text(stmt, 7);	
+			input_tbillsize->value((const char*)tbillsize);
+
+			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
+			input_tbillrate->value((const char*)tbillrate);
+
+			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
+			input_newfxrate->value((const char*)newfxrate);
+		}
+
+		// The application must finalize every prepared statement in order to avoid resource leaks.
+		// // finalize second statement 
+		finalize = sqlite3_finalize(stmt);
+		if(finalize != SQLITE_OK) 
+		{
+			std::cout<< finalize << std::endl; 
+		}
+		/* else */
+		/* { */
+			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+		/* } */
+	} 
+	/* else */ 
+	/* { */
+	/* 	std::cout << "Table does not exist. Gracefully doing nothing..." << std::endl; */
+	/* } */
+} 
+else 
+{
+	std::cerr << "Error preparing SQL statement" << std::endl;
+}
+
+sqlite3_close(db); // close the database} {}
+  code {// ICON CODE 
+const char *name = (argc > 1) ? argv[1] : "logo.png";
+if (argc>1) argc = 1; // BAD HACK !
+
+Fl_PNG_Image *img = new Fl_PNG_Image(name); // load image
+if (img->w() == 0 || img->h() == 0) {
+fl_message("Can't open icon file '%s'",name);
+exit(1);
+}
+
+// set icon and xclass
+
+window->icon(img); // set window icon
+
+const char *xc = strrchr(name,'/'); // find file name part
+if (!xc) xc = name; // no directory part
+window->xclass(xc); // set xclass for grouping} {}
+}
