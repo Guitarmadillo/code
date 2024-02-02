@@ -3,6 +3,7 @@
 #include "calculator_v2.h"
 #include <stdlib.h>
 #include <iostream>
+#include <iomanip>
 #include <boost/format.hpp>
 #include <array>
 #include <FL/Fl_Text_Buffer.H>
@@ -22,6 +23,7 @@
 // only be the result of one of the short currencies. 
 
 // sqlite objects
+static int version_num = 21;
 static char* err; sqlite3* db; const char* dbPath = "config.db"; sqlite3_stmt* stmt;
 
 void load_CB(Fl_Widget*w, void* userdata) {
@@ -78,8 +80,38 @@ void load_CB(Fl_Widget*w, void* userdata) {
   			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
   			input_tbillrate->value((const char*)tbillrate);
 
-  			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
-  			input_newfxrate->value((const char*)newfxrate);
+  			const unsigned char* currency1proceeds_size = sqlite3_column_text(stmt, 9);	
+  			input_currency1proceeds->value((const char*)currency1proceeds_size);
+
+  			const unsigned char* currency1proceeds_rate = sqlite3_column_text(stmt, 10);	
+  			input_currency1proceedsrate->value((const char*)currency1proceeds_rate);
+
+  			const unsigned char* currency2proceeds_size = sqlite3_column_text(stmt, 11);	
+  			input_currency2proceeds->value((const char*)currency2proceeds_size);
+
+  			const unsigned char* currency2proceeds_rate = sqlite3_column_text(stmt, 12);	
+  			input_currency2proceedsrate->value((const char*)currency2proceeds_rate);
+
+  			const unsigned char* currency3proceeds_size = sqlite3_column_text(stmt, 13);	
+  			input_currency3proceeds->value((const char*)currency3proceeds_size);
+
+  			const unsigned char* currency3proceeds_rate = sqlite3_column_text(stmt, 14);	
+  			input_currency3proceedsrate->value((const char*)currency3proceeds_rate);
+
+  			const unsigned char* tbillproceeds = sqlite3_column_text(stmt, 15);	
+  			input_tbillproceeds->value((const char*)tbillproceeds);
+
+  			const unsigned char* tbillproceeds_rate = sqlite3_column_text(stmt, 16);	
+  			input_tbillproceedsrate->value((const char*)tbillproceeds_rate);
+
+  			const unsigned char* fxrate1 = sqlite3_column_text(stmt, 17);	
+  			input_fxrate1->value((const char*)fxrate1);
+
+  			const unsigned char* fxrate2 = sqlite3_column_text(stmt, 18);	
+  			input_fxrate2->value((const char*)fxrate2);
+
+  			const unsigned char* fxrate3 = sqlite3_column_text(stmt, 19);	
+  			input_fxrate3->value((const char*)fxrate3);
   		}
 
   		// The application must finalize every prepared statement in order to avoid resource leaks.
@@ -111,19 +143,34 @@ void load_CB(Fl_Widget*w, void* userdata) {
 void save_CB(Fl_Widget*w, void* userdata) {
   // Set up to read existing sqlite3 database (or create if not exists)
   	
-  std::string_view tbillsize = input_tbillsize->value() ;
-  const std::string& currency1size = input_currency1size->value();
-  std::string_view currency2size = input_currency2size->value();
-  std::string_view currency3size = input_currency3size->value();
+  // obtain the position size values for 4 positions
+  /* std::string_view tbillsize = input_tbillsize->value() ; */
+  /* std::string_view currency1size = input_currency1size->value(); */
+  /* std::string_view currency2size = input_currency2size->value(); */
+  /* std::string_view currency3size = input_currency3size->value(); */
 
-  // the yearly interest rates are obtained as doubles
-  std::string_view tbillrate = input_tbillrate->value() ;
-  std::string_view currency1rate = input_currency1rate->value();
-  std::string_view currency2rate = input_currency2rate->value();
-  std::string_view currency3rate = input_currency3rate->value();
+  // obtain the interest rates for 4 positions
+  /* std::string_view tbillrate = input_tbillrate->value() ; */
+  /* std::string_view currency1rate = input_currency1rate->value(); */
+  /* std::string_view currency2rate = input_currency2rate->value(); */
+  /* std::string_view currency3rate = input_currency3rate->value(); */
+
+  // obtain the position sizes for 4 proceeds positions 
+  /* std::string_view tbillproceeds_size = input_tbillproceeds->value() ; */
+  /* std::string currency1proceeds_size = input_currency1proceeds->value(); */
+  /* std::string_view currency2proceeds_size = input_currency2proceeds->value(); */
+  /* std::string_view currency3proceeds_size = input_currency3proceeds->value(); */
+
+  // obtain the interest rates for 4 proceeds positions
+  /* std::string_view tbillproceeds_rate = input_tbillproceedsrate->value() ; */
+  /* std::string_view currency1proceeds_rate = input_currency1proceedsrate->value(); */
+  /* std::string_view currency2proceeds_rate = input_currency2proceedsrate->value(); */
+  /* std::string_view currency3proceeds_rate = input_currency3proceedsrate->value(); */
 
   // obtain fx rate change values 
-  std::string_view newfxrate = input_newfxrate->value() ;
+  /* std::string_view fxrate1 = input_fxrate1->value() ; */
+  /* std::string_view fxrate2 = input_fxrate2->value() ; */
+  /* std::string_view fxrate3 = input_fxrate3->value() ; */
 
   // debug 
   /* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
@@ -131,7 +178,7 @@ void save_CB(Fl_Widget*w, void* userdata) {
   /* currency2size << " 2rate: " << currency2rate << " 3size: " */ 
   /* << currency3size << " 3rate: " << currency3rate << std::endl; */
 
-  /* std::cout << "new fx rate: " << newfxrate << std::endl; */
+  /* std::cout << "new fx rate: " << fxrate1 << std::endl; */
 
   // open the database
   sqlite3_open(dbPath, &db);
@@ -147,7 +194,21 @@ void save_CB(Fl_Widget*w, void* userdata) {
   	"CURRENCY3RATE TEXT, "
   	"TBILLSIZE TEXT, "
   	"TBILLRATE TEXT, "
-  	"FXRATECHANGE TEXT);";
+  	"CURRENCY1PROCEEDS_SIZE TEXT, "
+  	"CURRENCY1PROCEEDS_RATE TEXT, "
+  	"CURRENCY2PROCEEDS_SIZE TEXT, "
+  	"CURRENCY2PROCEEDS_RATE TEXT, "
+  	"CURRENCY3PROCEEDS_SIZE TEXT, "
+  	"CURRENCY3PROCEEDS_RATE TEXT, "
+  	"TBILLPROCEEDS_SIZE TEXT, "
+  	"TBILLPROCEEDS_RATE TEXT, "
+  	"FXRATE1 TEXT, "
+  	"FXRATE2 TEXT, "
+  	"FXRATE3 TEXT, "
+  	"C1_COVERCURRENCY INT, "
+  	"C2_COVERCURRENCY INT, "
+  	"C3_COVERCURRENCY INT, "
+  	"C4_COVERCURRENCY INT);";
 
   int result = sqlite3_exec(db, sql, NULL, 0, &err);
   if(result != SQLITE_OK)
@@ -157,8 +218,47 @@ void save_CB(Fl_Widget*w, void* userdata) {
   }
 
   // ADD OR REPLACE THE ROW IN OUR TABLE 
-  const std::string insert_sql = "INSERT OR REPLACE INTO MAINWINDOW_INPUTS (ID, CURRENCY1SIZE, CURRENCY1RATE, CURRENCY2SIZE, CURRENCY2RATE, CURRENCY3SIZE, CURRENCY3RATE, TBILLSIZE, TBILLRATE, FXRATECHANGE)" 
-   " VALUES((SELECT ID FROM MAINWINDOW_INPUTS LIMIT 1),'"+ std::string(input_currency1size->value()) +"', '"+ std::string(input_currency1rate->value()) +"', '"+ std::string(input_currency2size->value()) +"', '"+ std::string(input_currency2rate->value()) +"', '"+ std::string(input_currency3size->value()) +"', '"+ std::string(input_currency3rate->value()) +"', '"+ std::string(input_tbillsize->value()) +"', '"+ std::string(input_tbillrate->value()) +"', '"+ std::string(input_newfxrate->value()) +"');"; 
+  const std::string insert_sql = "INSERT OR REPLACE INTO MAINWINDOW_INPUTS ("
+  	"ID, "
+  	"CURRENCY1SIZE, "
+  	"CURRENCY1RATE, "
+      "CURRENCY2SIZE, "
+      "CURRENCY2RATE, "
+      "CURRENCY3SIZE, "
+  	"CURRENCY3RATE, "
+  	"TBILLSIZE, "
+  	"TBILLRATE, "
+  	"CURRENCY1PROCEEDS_SIZE, "
+      "CURRENCY1PROCEEDS_RATE, "
+      "CURRENCY2PROCEEDS_SIZE, "
+      "CURRENCY2PROCEEDS_RATE, "
+      "CURRENCY3PROCEEDS_SIZE, "
+      "CURRENCY3PROCEEDS_RATE, "
+      "TBILLPROCEEDS_SIZE, "
+      "TBILLPROCEEDS_RATE, "
+      "FXRATE1, "
+      "FXRATE2, "
+      "FXRATE3) "
+   	" VALUES((SELECT ID FROM MAINWINDOW_INPUTS LIMIT 1),"
+  	"'"+ std::string(input_currency1size->value()) +"', "
+  	"'"+ std::string(input_currency1rate->value()) +"', "
+  	"'"+ std::string(input_currency2size->value()) +"', "
+  	"'"+ std::string(input_currency2rate->value()) +"', "
+  	"'"+ std::string(input_currency3size->value()) +"', "
+  	"'"+ std::string(input_currency3rate->value()) +"', "
+  	"'"+ std::string(input_tbillsize->value()) +"', "
+  	"'"+ std::string(input_tbillrate->value()) +"', "
+  	"'"+ std::string(input_currency1proceeds->value()) +"', "
+  	"'"+ std::string(input_currency1proceedsrate->value()) +"', "
+  	"'"+ std::string(input_currency2proceeds->value()) +"', "
+  	"'"+ std::string(input_currency2proceedsrate->value()) +"', "
+  	"'"+ std::string(input_currency3proceeds->value()) +"', "
+  	"'"+ std::string(input_currency3proceedsrate->value()) +"', "
+  	"'"+ std::string(input_tbillproceeds->value()) +"', "
+  	"'"+ std::string(input_tbillproceedsrate->value()) +"', "
+  	"'"+ std::string(input_fxrate1->value()) +"', "
+  	"'"+ std::string(input_fxrate2->value()) +"', "
+  	"'"+ std::string(input_fxrate3->value()) +"');"; 
 
   /* std::cout << "sql debug: " << insert_sql << std::endl; */
 
@@ -231,8 +331,38 @@ void clear_CB(Fl_Widget*w, void* userdata) {
   			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
   			input_tbillrate->value("");
 
-  			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
-  			input_newfxrate->value("");
+  			const unsigned char* currency1proceeds_size = sqlite3_column_text(stmt, 9);	
+  			input_currency1proceeds->value("");
+
+  			const unsigned char* currency1proceeds_rate = sqlite3_column_text(stmt, 10);	
+  			input_currency1proceedsrate->value("");
+
+  			const unsigned char* currency2proceeds_size = sqlite3_column_text(stmt, 11);	
+  			input_currency2proceeds->value("");
+
+  			const unsigned char* currency2proceeds_rate = sqlite3_column_text(stmt, 12);	
+  			input_currency2proceedsrate->value("");
+
+  			const unsigned char* currency3proceeds_size = sqlite3_column_text(stmt, 13);	
+  			input_currency3proceeds->value("");
+
+  			const unsigned char* currency3proceeds_rate = sqlite3_column_text(stmt, 14);	
+  			input_currency3proceedsrate->value("");
+
+  			const unsigned char* tbillproceeds = sqlite3_column_text(stmt, 15);	
+  			input_tbillproceeds->value("");
+
+  			const unsigned char* tbillproceeds_rate = sqlite3_column_text(stmt, 16);	
+  			input_tbillproceedsrate->value("");
+
+  			const unsigned char* fxrate1 = sqlite3_column_text(stmt, 17);	
+  			input_fxrate1->value("");
+
+  			const unsigned char* fxrate2 = sqlite3_column_text(stmt, 18);	
+  			input_fxrate2->value("");
+
+  			const unsigned char* fxrate3 = sqlite3_column_text(stmt, 19);	
+  			input_fxrate3->value("");
   		}
 
   		// The application must finalize every prepared statement in order to avoid resource leaks.
@@ -261,6 +391,93 @@ void clear_CB(Fl_Widget*w, void* userdata) {
   sqlite3_close(db); // close the database
 }
 
+void invert_CB(Fl_Widget*w, void* userdata) {
+  // Handle the inversion of the FX rate for quick swaps. 
+
+  // get the userdata to identify which button was pressed 
+  std::string_view  which_button = (const char*)userdata;
+
+  /* std::cout << "button: " << which_button << std::endl; */
+  if(which_button == "invert1")
+  {
+  	double previous_value = std::strtod(input_fxrate1->value(), nullptr);
+  	double reverse_rate = 1 / previous_value;
+
+  	// Allow five decimal places in the output 
+  	std::ostringstream ss;
+  	ss << std::fixed << std::setprecision(5) << std::abs(reverse_rate);
+
+  	input_fxrate1->value(ss.str().c_str());
+
+  }
+  else if(which_button == "invert2")
+  {
+  	double previous_value = std::strtod(input_fxrate2->value(), nullptr);
+  	double reverse_rate = 1 / previous_value;
+
+  	// Allow five decimal places in the output 
+  	std::ostringstream ss;
+  	ss << std::fixed << std::setprecision(5) << std::abs(reverse_rate);
+
+  	input_fxrate2->value(ss.str().c_str());
+
+  }
+
+  else if(which_button == "invert3")
+  {
+  	double previous_value = std::strtod(input_fxrate3->value(), nullptr);
+  	double reverse_rate = 1 / previous_value;
+
+  	// Allow five decimal places in the output 
+  	std::ostringstream ss;
+  	ss << std::fixed << std::setprecision(5) << std::abs(reverse_rate);
+
+  	input_fxrate3->value(ss.str().c_str());
+  }
+}
+
+void ResponseWindow_CB(Fl_Widget*w, void* userdata) {
+  // This callback handles the window close button for response window
+  //
+  // SAVE the values for which currencies for cost to cover to the db
+
+  int C1_covercurrency = C1_currencychoice->value();
+  int C2_covercurrency = C2_currencychoice->value();
+  int C3_covercurrency = C3_currencychoice->value();
+  int C4_covercurrency = C4_currencychoice->value();
+
+  // debug 
+  /* std::cout << C1_covercurrency << " " << C2_covercurrency << " " */ 
+  /* << C3_covercurrency << " " << C4_covercurrency << std::endl; */
+
+  // open the database
+  sqlite3_open(dbPath, &db);
+
+  // ADD OR REPLACE THE ROW IN OUR TABLE 
+  const std::string update_sql = "UPDATE MAINWINDOW_INPUTS SET "
+      "C1_COVERCURRENCY = '" + std::to_string(C1_covercurrency) + "', "
+      "C2_COVERCURRENCY = '" + std::to_string(C2_covercurrency) + "', "
+      "C3_COVERCURRENCY = '" + std::to_string(C3_covercurrency) + "', "
+      "C4_COVERCURRENCY = '" + std::to_string(C4_covercurrency) + "' "
+      "WHERE ID = 1;";
+
+  int result = sqlite3_exec(db, update_sql.c_str(), NULL, 0, &err); 
+  if(result != SQLITE_OK) 
+  { 
+  	std::cout << "error with insert: " << err << std::endl; 
+  	sqlite3_free(err); // need to look into that function 
+  } 
+  else
+  {
+  	/* std::cout << "inserted: " << result << std::endl; */
+  }
+  	
+  sqlite3_close(db); // close the database
+  				   
+  // Kill the widget, safely destroys the widget and all it's contents 
+  w->~Fl_Widget();
+}
+
 Fl_Double_Window *response_window=(Fl_Double_Window *)0;
 
 Fl_Text_Display *c1_output=(Fl_Text_Display *)0;
@@ -273,52 +490,273 @@ Fl_Text_Display *tbill_output=(Fl_Text_Display *)0;
 
 Fl_Text_Display *blended_output=(Fl_Text_Display *)0;
 
+Fl_Choice *C1_currencychoice=(Fl_Choice *)0;
+
+Fl_Menu_Item menu_C1_currencychoice[] = {
+ {"Currency 1", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 2", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 3", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {0,0,0,0,0,0,0,0,0}
+};
+
+Fl_Choice *C2_currencychoice=(Fl_Choice *)0;
+
+Fl_Menu_Item menu_C2_currencychoice[] = {
+ {"Currency 1", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 2", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 3", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {0,0,0,0,0,0,0,0,0}
+};
+
+Fl_Choice *C3_currencychoice=(Fl_Choice *)0;
+
+Fl_Menu_Item menu_C3_currencychoice[] = {
+ {"Currency 1", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 2", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 3", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {0,0,0,0,0,0,0,0,0}
+};
+
+Fl_Choice *C4_currencychoice=(Fl_Choice *)0;
+
+Fl_Menu_Item menu_C4_currencychoice[] = {
+ {"Currency 1", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 2", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {"Currency 3", 0,  0, 0, 0, (uchar)FL_NORMAL_LABEL, 0, 14, 0},
+ {0,0,0,0,0,0,0,0,0}
+};
+
+Fl_Text_Display *c1_reinvest_output=(Fl_Text_Display *)0;
+
+Fl_Text_Display *c2_reinvest_output=(Fl_Text_Display *)0;
+
+Fl_Text_Display *c3_reinvest_output=(Fl_Text_Display *)0;
+
+Fl_Text_Display *tbill_reinvest_output=(Fl_Text_Display *)0;
+
+Fl_Button *recalc_button=(Fl_Button *)0;
+
+Fl_Button *save_button2=(Fl_Button *)0;
+
+Fl_Button *close_button=(Fl_Button *)0;
+
 void Calculate_CB(Fl_Widget*w, void* userdata) {
-  { response_window = new Fl_Double_Window(441, 309, "Currency Spread Calculator V2 - Results");
+  { response_window = new Fl_Double_Window(448, 710, "Currency Spread Calculator  - Results");
+    response_window->callback((Fl_Callback*)ResponseWindow_CB, (void*)("results_window"));
     response_window->align(Fl_Align(FL_ALIGN_CLIP|FL_ALIGN_INSIDE));
-    { Fl_Flex* o = new Fl_Flex(6, 19, 427, 67);
+    { Fl_Flex* o = new Fl_Flex(4, 21, 430, 107);
       o->type(1);
-      { c1_output = new Fl_Text_Display(6, 19, 214, 67, "Currency 1");
+      { c1_output = new Fl_Text_Display(4, 21, 215, 107, "Currency 1");
         c1_output->box(FL_OXY_UP_FRAME);
         c1_output->labelcolor((Fl_Color)96);
         c1_output->textcolor(FL_GRAY0);
-        c1_output->align(Fl_Align(161));
-        c1_output->wrap_mode(4,0);
+        //c1_output->wrap_mode(4,0);
       } // Fl_Text_Display* c1_output
-      { c2_output = new Fl_Text_Display(220, 19, 213, 67, "Currency 2");
+      { c2_output = new Fl_Text_Display(219, 21, 215, 107, "Currency 2");
         c2_output->box(FL_OXY_UP_FRAME);
         c2_output->textcolor(FL_GRAY0);
-        c2_output->wrap_mode(4,0);
+        // c2_output->wrap_mode(4,0);
       } // Fl_Text_Display* c2_output
+      o->fixed(o->child(0), 215);
+      o->fixed(o->child(1), 215);
       o->end();
     } // Fl_Flex* o
-    { Fl_Flex* o = new Fl_Flex(6, 106, 427, 67);
+    { Fl_Flex* o = new Fl_Flex(6, 171, 430, 107);
       o->type(1);
-      { c3_output = new Fl_Text_Display(6, 106, 214, 67, "Currency 3 (Long Only)");
+      { c3_output = new Fl_Text_Display(6, 171, 215, 107, "Currency 3");
         c3_output->box(FL_OXY_UP_FRAME);
         c3_output->textcolor(FL_GRAY0);
-        c3_output->wrap_mode(4,0);
+        // c3_output->wrap_mode(4,0);
       } // Fl_Text_Display* c3_output
-      { tbill_output = new Fl_Text_Display(220, 106, 213, 67, "Fixed Income");
+      { tbill_output = new Fl_Text_Display(221, 171, 215, 107, "Fixed Income");
         tbill_output->box(FL_OXY_UP_FRAME);
         tbill_output->textcolor(FL_GRAY0);
-        tbill_output->wrap_mode(4,0);
+        // tbill_output->wrap_mode(4,0);
       } // Fl_Text_Display* tbill_output
+      o->fixed(o->child(0), 215);
+      o->fixed(o->child(1), 215);
       o->end();
     } // Fl_Flex* o
-    { blended_output = new Fl_Text_Display(10, 193, 421, 108, "Total Return / Cost to Cover");
+    { blended_output = new Fl_Text_Display(9, 551, 363, 151, "Total Return / Cost to Cover");
       blended_output->box(FL_SHADOW_BOX);
       blended_output->color((Fl_Color)34);
       blended_output->selection_color(FL_BACKGROUND2_COLOR);
+      blended_output->labeltype(FL_NO_LABEL);
       blended_output->textsize(15);
       blended_output->textcolor((Fl_Color)55);
       blended_output->wrap_mode(4,0);
     } // Fl_Text_Display* blended_output
+    { Fl_Box* o = new Fl_Box(6, 132, 427, 22, "label");
+      o->box(FL_THIN_UP_FRAME);
+      o->color((Fl_Color)40);
+      o->selection_color((Fl_Color)78);
+      o->labeltype(FL_NO_LABEL);
+    } // Fl_Box* o
+    { Fl_Box* o = new Fl_Box(6, 281, 427, 22, "label");
+      o->box(FL_THIN_UP_FRAME);
+      o->color((Fl_Color)40);
+      o->selection_color((Fl_Color)78);
+      o->labeltype(FL_NO_LABEL);
+    } // Fl_Box* o
+    { C1_currencychoice = new Fl_Choice(107, 132, 97, 21, "Cover using:");
+      C1_currencychoice->box(FL_GTK_DOWN_BOX);
+      C1_currencychoice->down_box(FL_BORDER_BOX);
+      C1_currencychoice->labelsize(13);
+      C1_currencychoice->callback((Fl_Callback*)Recalculate_CB);
+      C1_currencychoice->when(FL_WHEN_CHANGED);
+      C1_currencychoice->menu(menu_C1_currencychoice);
+    } // Fl_Choice* C1_currencychoice
+    { C2_currencychoice = new Fl_Choice(314, 131, 97, 21, "Cover using:");
+      C2_currencychoice->box(FL_GTK_DOWN_BOX);
+      C2_currencychoice->down_box(FL_BORDER_BOX);
+      C2_currencychoice->labelsize(13);
+      C2_currencychoice->callback((Fl_Callback*)Recalculate_CB);
+      C2_currencychoice->when(FL_WHEN_CHANGED);
+      C2_currencychoice->menu(menu_C2_currencychoice);
+    } // Fl_Choice* C2_currencychoice
+    { C3_currencychoice = new Fl_Choice(97, 281, 97, 21, "Cover using:");
+      C3_currencychoice->box(FL_GTK_DOWN_BOX);
+      C3_currencychoice->down_box(FL_BORDER_BOX);
+      C3_currencychoice->labelsize(13);
+      C3_currencychoice->callback((Fl_Callback*)Recalculate_CB);
+      C3_currencychoice->when(FL_WHEN_CHANGED);
+      C3_currencychoice->menu(menu_C3_currencychoice);
+    } // Fl_Choice* C3_currencychoice
+    { C4_currencychoice = new Fl_Choice(314, 281, 97, 21, "Cover using:");
+      C4_currencychoice->box(FL_GTK_DOWN_BOX);
+      C4_currencychoice->down_box(FL_BORDER_BOX);
+      C4_currencychoice->labelsize(13);
+      C4_currencychoice->callback((Fl_Callback*)Recalculate_CB);
+      C4_currencychoice->when(FL_WHEN_CHANGED);
+      C4_currencychoice->menu(menu_C4_currencychoice);
+    } // Fl_Choice* C4_currencychoice
+    { Fl_Flex* o = new Fl_Flex(6, 320, 427, 105);
+      o->type(1);
+      { c1_reinvest_output = new Fl_Text_Display(6, 320, 214, 105, "Currency 1 Re-invest");
+        c1_reinvest_output->box(FL_OXY_UP_FRAME);
+        c1_reinvest_output->labelcolor((Fl_Color)96);
+        c1_reinvest_output->textcolor(FL_GRAY0);
+        c1_reinvest_output->align(Fl_Align(161));
+        // c1_reinvest_output->wrap_mode(4,0);
+      } // Fl_Text_Display* c1_reinvest_output
+      { c2_reinvest_output = new Fl_Text_Display(220, 320, 213, 105, "Currency 2 Re-invest");
+        c2_reinvest_output->box(FL_OXY_UP_FRAME);
+        c2_reinvest_output->textcolor(FL_GRAY0);
+        // c2_reinvest_output->wrap_mode(4,0);
+      } // Fl_Text_Display* c2_reinvest_output
+      o->fixed(o->child(0), 214);
+      o->fixed(o->child(1), 213);
+      o->end();
+    } // Fl_Flex* o
+    { Fl_Flex* o = new Fl_Flex(6, 442, 427, 105);
+      o->type(1);
+      { c3_reinvest_output = new Fl_Text_Display(6, 442, 214, 105, "Currency 3 Re-invest");
+        c3_reinvest_output->box(FL_OXY_UP_FRAME);
+        c3_reinvest_output->labelcolor((Fl_Color)96);
+        c3_reinvest_output->textcolor(FL_GRAY0);
+        c3_reinvest_output->align(Fl_Align(161));
+        // c3_reinvest_output->wrap_mode(4,0);
+      } // Fl_Text_Display* c3_reinvest_output
+      { tbill_reinvest_output = new Fl_Text_Display(220, 442, 213, 105, "Short Bonds Re-invest");
+        tbill_reinvest_output->box(FL_OXY_UP_FRAME);
+        tbill_reinvest_output->textcolor(FL_GRAY0);
+        // tbill_reinvest_output->wrap_mode(4,0);
+      } // Fl_Text_Display* tbill_reinvest_output
+      o->fixed(o->child(0), 214);
+      o->fixed(o->child(1), 213);
+      o->end();
+    } // Fl_Flex* o
+    { recalc_button = new Fl_Button(377, 553, 67, 53, "Calculate");
+      recalc_button->box(FL_GTK_THIN_UP_BOX);
+      recalc_button->down_box(FL_GTK_THIN_DOWN_BOX);
+      recalc_button->color((Fl_Color)215);
+      recalc_button->selection_color((Fl_Color)175);
+      recalc_button->callback((Fl_Callback*)Recalculate_CB);
+    } // Fl_Button* recalc_button
+    { save_button2 = new Fl_Button(376, 612, 67, 40, "Save");
+      save_button2->box(FL_GTK_THIN_UP_BOX);
+      save_button2->down_box(FL_GTK_THIN_DOWN_BOX);
+      save_button2->color((Fl_Color)166);
+      save_button2->selection_color((Fl_Color)166);
+      save_button2->callback((Fl_Callback*)save_CB);
+    } // Fl_Button* save_button2
+    { close_button = new Fl_Button(377, 661, 67, 40, "Close");
+      close_button->box(FL_GTK_THIN_UP_BOX);
+      close_button->down_box(FL_GTK_THIN_DOWN_BOX);
+      close_button->color((Fl_Color)214);
+      close_button->selection_color((Fl_Color)214);
+    } // Fl_Button* close_button
     response_window->set_non_modal();
     response_window->show();
     response_window->end();
   } // Fl_Double_Window* response_window
   // Code that will be called when we press the calculate button 
+  //
+  //
+  // Load the values from the DB for currencies to cover 
+  // open (ALREADY IN ABOVE CODE)
+  sqlite3_open(dbPath, &db);
+
+  const char* checkTableExistsQuery = "SELECT name FROM sqlite_master WHERE type='table' AND name='MAINWINDOW_INPUTS';";
+
+  if (sqlite3_prepare_v2(db, checkTableExistsQuery, -1, &stmt, nullptr) == SQLITE_OK) 
+  {
+  	if (sqlite3_step(stmt) == SQLITE_ROW) 
+  	{
+  		/* std::cout << "Table exists!" << std::endl; */
+
+  		// FINALIZE before going to next prepared statement 
+  		int finalize = sqlite3_finalize(stmt);
+  		if(finalize != SQLITE_OK) 
+  		{
+  			std::cout<< finalize << std::endl; 
+  		}
+  		/* else */
+  		/* { */
+  			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+  		/* } */
+
+  		// prepare statement to obtain values from the DB 
+  		sqlite3_prepare_v2(db, "SELECT * from MAINWINDOW_INPUTS LIMIT 1", -1, &stmt, 0); 
+
+  		while(sqlite3_step(stmt) != SQLITE_DONE) 
+  		{ 
+  			int C1_covercurrency = sqlite3_column_int(stmt, 20);	
+  			C1_currencychoice->value(C1_covercurrency);
+
+  			int C2_covercurrency = sqlite3_column_int(stmt, 21);	
+  			C2_currencychoice->value(C2_covercurrency);
+
+  			int C3_covercurrency = sqlite3_column_int(stmt, 22);	
+  			C3_currencychoice->value(C3_covercurrency);
+
+  			int C4_covercurrency = sqlite3_column_int(stmt, 23);	
+  			C4_currencychoice->value(C4_covercurrency);
+  		}
+
+  		// The application must finalize every prepared statement in order to avoid resource leaks.
+  		// // finalize second statement 
+  		finalize = sqlite3_finalize(stmt);
+  		if(finalize != SQLITE_OK) 
+  		{
+  			std::cout<< finalize << std::endl; 
+  		}
+  		/* else */
+  		/* { */
+  			/* std::cout << " SQL Statement Finalized..." << std::endl; */
+  		/* } */
+  	} 
+  	/* else */ 
+  	/* { */
+  	/* 	std::cout << "Table does not exist. Gracefully doing nothing..." << std::endl; */
+  	/* } */
+  } 
+  else 
+  {
+  	std::cerr << "Error preparing SQL statement" << std::endl;
+  }
+
+  sqlite3_close(db); // close the database
   //
   // Some of the calculations are borrowed from int calculator v1
   // The first thing we should do is safely obtain all of the user inputs 
@@ -328,19 +766,34 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   // to double (this function automatically removes invalid characters from the
   // end of the double
 
-  double tbillsize = std::strtod(input_tbillsize->value(), nullptr);
+  // obtain the 4 primary position sizes 
   double currency1size = std::strtod(input_currency1size->value(), nullptr);
   double currency2size = std::strtod(input_currency2size->value(), nullptr);
   double currency3size = std::strtod(input_currency3size->value(), nullptr);
+  double tbillsize = std::strtod(input_tbillsize->value(), nullptr);
 
-  // the yearly interest rates are obtained as doubles
-  double tbillrate = std::strtod(input_tbillrate->value(), nullptr) / 100;
+  // obtain the 4 primary position interest rates 
   double currency1rate = std::strtod(input_currency1rate->value(), nullptr) / 100;
   double currency2rate = std::strtod(input_currency2rate->value(), nullptr) / 100;
   double currency3rate = std::strtod(input_currency3rate->value(), nullptr) / 100;
+  double tbillrate = std::strtod(input_tbillrate->value(), nullptr) / 100;
+
+  // obtain the 4 proceeds position sizes 
+  double currency1proceeds = std::strtod(input_currency1proceeds->value(), nullptr);
+  double currency2proceeds = std::strtod(input_currency2proceeds->value(), nullptr);
+  double currency3proceeds = std::strtod(input_currency3proceeds->value(), nullptr);
+  double tbillproceeds = std::strtod(input_tbillproceeds->value(), nullptr);
+
+  // obtain the 4 proceeds position interest rates 
+  double currency1proceeds_rate = std::strtod(input_currency1proceedsrate->value(), nullptr) / 100;
+  double currency2proceeds_rate = std::strtod(input_currency2proceedsrate->value(), nullptr) / 100;
+  double currency3proceeds_rate = std::strtod(input_currency3proceedsrate->value(), nullptr) / 100;
+  double tbillproceeds_rate = std::strtod(input_tbillproceedsrate->value(), nullptr) / 100;
 
   // obtain fx rate change values 
-  double newfxrate = std::strtod(input_newfxrate->value(), nullptr);
+  double fxrate1 = std::strtod(input_fxrate1->value(), nullptr);
+  double fxrate2 = std::strtod(input_fxrate2->value(), nullptr);
+  double fxrate3 = std::strtod(input_fxrate3->value(), nullptr);
 
   // debug 
   /* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
@@ -349,13 +802,447 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   /* << currency3size << " 3rate: " << currency3rate << std::endl; */
 
   // debug 
-  /* std::cout << "new fx rate: " << newfxrate << std::endl; */
+  /* std::cout << "new fx rate: " << fxrate1 << std::endl; */
 
+  // variables to use 
   double blended_one_year_profit = 0;
   double total_currency = 0;
   double blended_percent_return = 0;
 
-  // values will be 0 if they have not been set by the user.
+  // items for cost to cover calculation
+  double c1_cost_to_cover = 0;
+  double c2_cost_to_cover = 0;
+  double c3_cost_to_cover = 0;
+
+  // used to sum negative balances 
+  double total_debt = 0;
+
+  // fx rate values will be 0 if they have not been set by the user.
+
+  // so basically we want to calculate the rate of return for each position 
+  // and then get the sum of those rate of returns to get the total rate 
+  if(currency1size != 0)
+  {
+  	if(currency1size > 0)
+  	{
+  		total_currency += currency1size;
+  	}
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency1rate / 365;
+
+  	// one year PL 
+  	double one_year_profit = (currency1size * currency1rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency1size) * 100;
+
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency1size;
+
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C1_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0:
+  			{
+  			// CASE 0 IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
+
+  			c1_cost_to_cover = std::abs(currency1size);
+
+  			// Formatting will be same as below 
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  			%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
+
+  			std::string c1_result = fmt.str();
+
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  			c1_output->buffer(c1buff);
+
+  			// add the text to our buffer (to the box)
+  			c1buff->text(c1_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		case 1:
+  			if(fxrate1 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency2 (fxrate1 is between C1 and C2 so we reverse the rate here)
+  				c1_cost_to_cover = std::abs(currency1size / (1 / fxrate1) ); 
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  				%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
+
+  				// write it to string
+  				std::string c1_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  				c1_output->buffer(c1buff);
+
+  				// add the text to our buffer (to the box)
+  				c1buff->text(c1_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 1 Cover currency is Currency 2." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 2:
+  			if(fxrate3 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency3 (fxrate3 is between C1 and C3)
+  				c1_cost_to_cover = std::abs(currency1size / (1 / fxrate3) ) ;	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  				%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
+
+  				// write it to string
+  				std::string c1_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  				c1_output->buffer(c1buff);
+
+  				// add the text to our buffer (to the box)
+  				c1buff->text(c1_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 1 Cover currency is Currency 3." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency1size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c1_result = fmt.str();
+
+  		/* std::cout << c1_result << std::endl; */
+
+  		// This should maybe be global but not sure. It works. 
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  		c1_output->buffer(c1buff);
+
+  		// add the text to our buffer (to the box)
+  		c1buff->text(c1_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
+  }
+
+  if(currency2size != 0)
+  {
+  	if(currency2size > 0)
+  	{
+  		total_currency += currency2size;
+  	}
+
+  	/* std::cout << "total currency: " << total_currency << std::endl; */
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency2rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency2size * currency2rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency2size) * 100;
+
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency2size;
+
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C2_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0: // Currency1
+  			if(fxrate1 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency1 (fxrate1 is between C1 and C2)
+  				c2_cost_to_cover = std::abs(currency2size / fxrate1);	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size 
+  				%final_percent_return %one_year_profit %daily_profit %c2_cost_to_cover;
+
+  				// write it to string
+  				std::string c2_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  				c2_output->buffer(c2buff);
+
+  				// add the text to our buffer (to the box)
+  				c2buff->text(c2_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 2 Cover currency is Currency 1." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 1: //Currency2
+  			{
+  			// CASE NOT APPLICABLE BECAUSE IT IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
+  			
+  			c2_cost_to_cover = std::abs(currency2size);
+
+  			// Formatting will be same as below 
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size %final_percent_return 
+  			%one_year_profit %daily_profit %c2_cost_to_cover;
+
+  			std::string c2_result = fmt.str();
+
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  			c2_output->buffer(c2buff);
+
+  			// add the text to our buffer (to the box)
+  			c2buff->text(c2_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		case 2:
+  			if(fxrate2 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency3 (fxrate3 is between C2 and C3)
+  				c2_cost_to_cover = std::abs(currency2size / (1 / fxrate2) );	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size 
+  				%final_percent_return %one_year_profit %daily_profit %c2_cost_to_cover;
+
+  				// write it to string
+  				std::string c2_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  				c2_output->buffer(c2buff);
+
+  				// add the text to our buffer (to the box)
+  				c2buff->text(c2_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 2 Cover currency is Currency 3." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency2size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c2_result = fmt.str();
+
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+
+  		c2_output->buffer(c2buff);
+
+  		// add the text to our buffer (to the box)
+  		c2buff->text(c2_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
+
+  }
+
+  if(currency3size != 0)
+  {
+  	// only count positive currencies in our total capital 
+  	if(currency3size > 0)
+  	{
+  		total_currency += currency3size;
+  	}
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency3rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency3size * currency3rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency3size) * 100;
+
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency3size;
+
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C3_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0: // Currency1
+  			if(fxrate3 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency1 (fxrate3 is between C1 and C3)
+  			 	c3_cost_to_cover = std::abs(currency3size / fxrate3);	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size 
+  				%final_percent_return %one_year_profit %daily_profit %c3_cost_to_cover;
+
+  				// write it to string
+  				std::string c3_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  				c3_output->buffer(c3buff);
+
+  				// add the text to our buffer (to the box)
+  				c3buff->text(c3_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 3 Cover currency is Currency 1." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 1: // cover with Currency 2
+  			if(fxrate2 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency2 (fxrate2 is between C2 and C3)
+  				c3_cost_to_cover = std::abs(currency3size / fxrate2);	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size 
+  				%final_percent_return %one_year_profit %daily_profit %c3_cost_to_cover;
+
+  				// write it to string
+  				std::string c3_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  				c3_output->buffer(c3buff);
+
+  				// add the text to our buffer (to the box)
+  				c3buff->text(c3_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 3 Cover currency is Currency 2." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 2:
+  			{
+  			// CASE NOT APPLICABLE BECAUSE IT IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
+  			
+  			c3_cost_to_cover = std::abs(currency3size);
+
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size %final_percent_return 
+  			%one_year_profit %daily_profit %c3_cost_to_cover;
+
+  			std::string c3_result = fmt.str();
+
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  			c3_output->buffer(c3buff);
+
+  			// add the text to our buffer (to the box)
+  			c3buff->text(c3_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency3size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c3_result = fmt.str();
+
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+
+  		c3_output->buffer(c3buff);
+
+  		// add the text to our buffer (to the box)
+  		c3buff->text(c3_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
+  }
+
   if(tbillsize != 0)
   {
   	// only count positive currencies 
@@ -373,16 +1260,14 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   	// calculate one year rate of return 
   	double one_year_profit = (tbillsize * tbillrate) - trade_fee;
 
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
   	// solve for one year percent rate of return 
   	double final_percent_return = (one_year_profit / tbillsize) * 100;
 
-  	// debug 
-  	/* std::cout << "TBill One year Profit was: " << one_year_profit << std::endl; */
-  	/* std::cout << "TBill final return was: " << final_percent_return */ 
-  	/* << "%" << std::endl; */
-
   	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
-  	"One Year P/L: $%3%") %tbillsize %final_percent_return %one_year_profit ;
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %tbillsize %final_percent_return %one_year_profit %daily_profit;
 
   	std::string tbill_result = fmt.str();
 
@@ -395,12 +1280,274 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
 
   	// append the values to our total
   	blended_one_year_profit += one_year_profit;
-  	/* blended_percent_return += final_percent_return; */
   }
+
+  // PROCEEDS TEXT OUTPUT
+  if(currency1proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency1proceeds;
+  	
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency1proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency1proceeds * currency1proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency1proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency1proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c1_buffer = new Fl_Text_Buffer();
+  	c1_reinvest_output->buffer(c1_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c1_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "1 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "1 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  if(currency2proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency2proceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency2proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency2proceeds * currency2proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency2proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency2proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c2_buffer = new Fl_Text_Buffer();
+  	c2_reinvest_output->buffer(c2_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c2_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "2 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "2 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  if(currency3proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency3proceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency3proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency3proceeds * currency3proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency3proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency3proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c3_buffer = new Fl_Text_Buffer();
+  	c3_reinvest_output->buffer(c3_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c3_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "3 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "3 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+  if(tbillproceeds != 0)
+  {
+  	// Proceeds will always be positive
+  	
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += tbillproceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = tbillproceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (tbillproceeds * tbillproceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / tbillproceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %tbillproceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *tbill_buffer = new Fl_Text_Buffer();
+  	tbill_reinvest_output->buffer(tbill_buffer);
+
+  	// add the text to our buffer (to the box)
+  	tbill_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "4 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "4 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  // LOGIC FOR TOTALS CALCULATIONS 
+
+  // solve for blended percent return 
+  blended_percent_return = (blended_one_year_profit / total_currency) * 100;
+
+  // used for solving cost to cover if applicable 
+  double cost_to_cover = 0;
+
+  // used for formatting text to pass into buffer 
+  std::string result; 
+
+  // if any of these currencies are negative we need to format text with cost to cover
+  if(currency1size < 0 || currency2size < 0 || currency3size < 0)
+  {
+  	// simply add up all cost to covers and we will get a total
+  	double total_cost_to_cover = c1_cost_to_cover + c2_cost_to_cover + c3_cost_to_cover;
+
+  	boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%2%\n"
+  	"Blended Interest Rate: %3%%%\nOne Year P/L: $%4%\n"
+  	"Cost to Cover with FX rate: $%5%") %total_currency %total_debt %blended_percent_return 
+  	%blended_one_year_profit % total_cost_to_cover ;
+
+  	// write to the string
+  	result = fmt.str();
+  }
+  else
+  {
+  	// no currencies are negative therefore format without cost to cover 
+
+  	boost::format fmt = boost::format("Total Capital: $%1%\n"
+  	"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%\n") %total_currency 
+  	%blended_percent_return %blended_one_year_profit ;
+
+  	// write to the string
+  	result = fmt.str();
+  }
+
+  // debug 
+  /* std::cout << "Total One Year Profit/Loss was: " << blended_one_year_profit */ 
+  /* << std::endl; */
+  /* std::cout << "Total return: " << blended_percent_return */ 
+  /* << "%" << std::endl; */
+
+  // create a new buffer 
+  Fl_Text_Buffer *total_buffer = new Fl_Text_Buffer();
+
+  // assign the buffer to a text display widget
+  blended_output->buffer(total_buffer);
+
+  // add the text to our buffer 
+  total_buffer->text(result.c_str());
+}
+
+void Recalculate_CB(Fl_Widget*w, void* userdata) {
+  // Code that will be called when we press the calculate button 
+  //
+  // Some of the calculations are borrowed from int calculator v1
+  // The first thing we should do is safely obtain all of the user inputs 
+  // all amounts are obtained as doubles
+  //
+  // const char* myvalue = input_currency1size->value(); Convert the const char*
+  // to double (this function automatically removes invalid characters from the
+  // end of the double
+
+  // obtain the 4 primary position sizes 
+  double currency1size = std::strtod(input_currency1size->value(), nullptr);
+  double currency2size = std::strtod(input_currency2size->value(), nullptr);
+  double currency3size = std::strtod(input_currency3size->value(), nullptr);
+  double tbillsize = std::strtod(input_tbillsize->value(), nullptr);
+
+  // obtain the 4 primary position interest rates 
+  double currency1rate = std::strtod(input_currency1rate->value(), nullptr) / 100;
+  double currency2rate = std::strtod(input_currency2rate->value(), nullptr) / 100;
+  double currency3rate = std::strtod(input_currency3rate->value(), nullptr) / 100;
+  double tbillrate = std::strtod(input_tbillrate->value(), nullptr) / 100;
+
+  // obtain the 4 proceeds position sizes 
+  double currency1proceeds = std::strtod(input_currency1proceeds->value(), nullptr);
+  double currency2proceeds = std::strtod(input_currency2proceeds->value(), nullptr);
+  double currency3proceeds = std::strtod(input_currency3proceeds->value(), nullptr);
+  double tbillproceeds = std::strtod(input_tbillproceeds->value(), nullptr);
+
+  // obtain the 4 proceeds position interest rates 
+  double currency1proceeds_rate = std::strtod(input_currency1proceedsrate->value(), nullptr) / 100;
+  double currency2proceeds_rate = std::strtod(input_currency2proceedsrate->value(), nullptr) / 100;
+  double currency3proceeds_rate = std::strtod(input_currency3proceedsrate->value(), nullptr) / 100;
+  double tbillproceeds_rate = std::strtod(input_tbillproceedsrate->value(), nullptr) / 100;
+
+  // obtain fx rate change values 
+  double fxrate1 = std::strtod(input_fxrate1->value(), nullptr);
+  double fxrate2 = std::strtod(input_fxrate2->value(), nullptr);
+  double fxrate3 = std::strtod(input_fxrate3->value(), nullptr);
+
+  // debug 
+  /* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
+  /* " 1size: " << currency1size << " 1rate: " << currency1rate << " 2size: " << */ 
+  /* currency2size << " 2rate: " << currency2rate << " 3size: " */ 
+  /* << currency3size << " 3rate: " << currency3rate << std::endl; */
+
+  // debug 
+  /* std::cout << "new fx rate: " << fxrate1 << std::endl; */
+
+  // variables to use 
+  double blended_one_year_profit = 0;
+  double total_currency = 0;
+  double blended_percent_return = 0;
+
+  // items for cost to cover calculation
+  double c1_cost_to_cover = 0;
+  double c2_cost_to_cover = 0;
+  double c3_cost_to_cover = 0;
+
+  // used to sum negative balances 
+  double total_debt = 0;
+
+  // fx rate values will be 0 if they have not been set by the user.
 
   // so basically we want to calculate the rate of return for each position 
   // and then get the sum of those rate of returns to get the total rate 
-  //
   if(currency1size != 0)
   {
   	if(currency1size > 0)
@@ -408,44 +1555,138 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   		total_currency += currency1size;
   	}
 
-  	/* std::cout << "total currency: " << total_currency << std::endl; */
-
   	// solve for the daily int rate 
   	double daily_int_rate = currency1rate / 365;
 
-  	// set a trade fee to subtract 
-  	/* double trade_fee = 7.5; */
-
-  	// calculate one year rate of return 
+  	// one year PL 
   	double one_year_profit = (currency1size * currency1rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
 
   	// solve for one year percent rate of return 
   	double final_percent_return = (one_year_profit / currency1size) * 100;
 
-  	// debug 
-  	/* std::cout << "Currency 1 One year Profit/Loss was: " << one_year_profit */ 
-  	/* << std::endl; */
-  	/* std::cout << "Currency 1 final return was: " << final_percent_return */ 
-  	/* << "%" << std::endl; */
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency1size;
 
-  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
-  	"One Year P/L: $%3%") %currency1size %final_percent_return %one_year_profit ;
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C1_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0:
+  			{
+  			// CASE 0 IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
 
-  	std::string c1_result = fmt.str();
+  			c1_cost_to_cover = std::abs(currency1size);
 
-  	/* std::cout << c1_result << std::endl; */
+  			// Formatting will be same as below 
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  			%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
 
-  	// This should probably be global or at least in same scope as text displays
-  	// create buffer and assign it to the appropriate text display widget 
-  	Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
-  	c1_output->buffer(c1buff);
+  			std::string c1_result = fmt.str();
 
-  	// add the text to our buffer (to the box)
-  	c1buff->text(c1_result.c_str());
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  			c1_output->buffer(c1buff);
 
-  	// append the values to our total
-  	blended_one_year_profit += one_year_profit;
-  	/* blended_percent_return += final_percent_return; */
+  			// add the text to our buffer (to the box)
+  			c1buff->text(c1_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		case 1:
+  			if(fxrate1 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency2 (fxrate1 is between C1 and C2 so we reverse the rate here)
+  				c1_cost_to_cover = std::abs(currency1size / (1 / fxrate1) ); 
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  				%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
+
+  				// write it to string
+  				std::string c1_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  				c1_output->buffer(c1buff);
+
+  				// add the text to our buffer (to the box)
+  				c1buff->text(c1_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 1 Cover currency is Currency 2." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 2:
+  			if(fxrate3 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency3 (fxrate3 is between C1 and C3)
+  				c1_cost_to_cover = std::abs(currency1size / (1 / fxrate3) ) ;	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency1size 
+  				%final_percent_return %one_year_profit %daily_profit %c1_cost_to_cover;
+
+  				// write it to string
+  				std::string c1_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  				c1_output->buffer(c1buff);
+
+  				// add the text to our buffer (to the box)
+  				c1buff->text(c1_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 1 Cover currency is Currency 3." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency1size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c1_result = fmt.str();
+
+  		/* std::cout << c1_result << std::endl; */
+
+  		// This should maybe be global but not sure. It works. 
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c1buff = new Fl_Text_Buffer();
+  		c1_output->buffer(c1buff);
+
+  		// add the text to our buffer (to the box)
+  		c1buff->text(c1_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
   }
 
   if(currency2size != 0)
@@ -460,36 +1701,134 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   	// solve for the daily int rate 
   	double daily_int_rate = currency2rate / 365;
 
-  	// set a trade fee to subtract 
-  	/* double trade_fee = 7.5; */
-
   	// calculate one year rate of return 
   	double one_year_profit = (currency2size * currency2rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
 
   	// solve for one year percent rate of return 
   	double final_percent_return = (one_year_profit / currency2size) * 100;
 
-  	// debug 
-  	/* std::cout << "Currency 2 One year Profit/Loss was: " << one_year_profit */ 
-  	/* << std::endl; */
-  	/* std::cout << "Currency 2 final return was: " << final_percent_return */ 
-  	/* << "%" << std::endl; */
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency2size;
 
-  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
-  	"One Year P/L: $%3%") %currency2size %final_percent_return %one_year_profit ;
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C2_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0: // Currency1
+  			if(fxrate1 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency1 (fxrate1 is between C1 and C2)
+  				c2_cost_to_cover = std::abs(currency2size / fxrate1);	
 
-  	std::string c2_result = fmt.str();
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size 
+  				%final_percent_return %one_year_profit %daily_profit %c2_cost_to_cover;
 
-  	// create buffer and assign it to the appropriate text display widget 
-  	Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  				// write it to string
+  				std::string c2_result = fmt.str();
 
-  	c2_output->buffer(c2buff);
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  				c2_output->buffer(c2buff);
 
-  	// add the text to our buffer (to the box)
-  	c2buff->text(c2_result.c_str());
+  				// add the text to our buffer (to the box)
+  				c2buff->text(c2_result.c_str());
 
-  	// append the values to our total
-  	blended_one_year_profit += one_year_profit;
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 2 Cover currency is Currency 1." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 1: //Currency2
+  			{
+  			// CASE NOT APPLICABLE BECAUSE IT IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
+  			
+  			c2_cost_to_cover = std::abs(currency2size);
+
+  			// Formatting will be same as below 
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size %final_percent_return 
+  			%one_year_profit %daily_profit %c2_cost_to_cover;
+
+  			std::string c2_result = fmt.str();
+
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  			c2_output->buffer(c2buff);
+
+  			// add the text to our buffer (to the box)
+  			c2buff->text(c2_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		case 2:
+  			if(fxrate2 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency3 (fxrate3 is between C2 and C3)
+  				c2_cost_to_cover = std::abs(currency2size / (1 / fxrate2) );	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency2size 
+  				%final_percent_return %one_year_profit %daily_profit %c2_cost_to_cover;
+
+  				// write it to string
+  				std::string c2_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+  				c2_output->buffer(c2buff);
+
+  				// add the text to our buffer (to the box)
+  				c2buff->text(c2_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 2 Cover currency is Currency 3." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency2size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c2_result = fmt.str();
+
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c2buff = new Fl_Text_Buffer();
+
+  		c2_output->buffer(c2buff);
+
+  		// add the text to our buffer (to the box)
+  		c2buff->text(c2_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
+
   }
 
   if(currency3size != 0)
@@ -500,166 +1839,358 @@ void Calculate_CB(Fl_Widget*w, void* userdata) {
   		total_currency += currency3size;
   	}
 
-  	/* std::cout << "total currency: " << total_currency << std::endl; */
-
   	// solve for the daily int rate 
   	double daily_int_rate = currency3rate / 365;
-
-  	// set a trade fee to subtract 
-  	/* double trade_fee = 7.5; */
 
   	// calculate one year rate of return 
   	double one_year_profit = (currency3size * currency3rate) ;
 
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
   	// solve for one year percent rate of return 
   	double final_percent_return = (one_year_profit / currency3size) * 100;
 
-  	// debug 
-  	/* std::cout << "Currency 3 One year Profit/Loss was: " << one_year_profit */ 
-  	/* << std::endl; */
-  	/* std::cout << "Currency 3 final return was: " << final_percent_return */ 
-  	/* << "%" << std::endl; */
+  	// if profit is negative, calculate cost to cover using cover currency input 
+  	if(one_year_profit < 0)
+  	{
+  		// since our profit is negative we have a negative balance so append it to the total debt
+  		total_debt += currency3size;
+
+  		// get selected cover currency from FL_Input
+  		int cover_currency = C3_currencychoice->value();
+  		switch (cover_currency) 
+  		{
+  		case 0: // Currency1
+  			if(fxrate3 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency1 (fxrate3 is between C1 and C3)
+  			 	c3_cost_to_cover = std::abs(currency3size / fxrate3);	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size 
+  				%final_percent_return %one_year_profit %daily_profit %c3_cost_to_cover;
+
+  				// write it to string
+  				std::string c3_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  				c3_output->buffer(c3buff);
+
+  				// add the text to our buffer (to the box)
+  				c3buff->text(c3_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 3 Cover currency is Currency 1." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 1: // cover with Currency 2
+  			if(fxrate2 != 0) // they needed to input an exchange rate  
+  			{
+  				// cover with currency2 (fxrate2 is between C2 and C3)
+  				c3_cost_to_cover = std::abs(currency3size / fxrate2);	
+
+  				// format text and set it  
+  				boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  				"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size 
+  				%final_percent_return %one_year_profit %daily_profit %c3_cost_to_cover;
+
+  				// write it to string
+  				std::string c3_result = fmt.str();
+
+  				// create buffer and assign it to the appropriate text display widget 
+  				Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  				c3_output->buffer(c3buff);
+
+  				// add the text to our buffer (to the box)
+  				c3buff->text(c3_result.c_str());
+
+  				// append the values to our total
+  				blended_one_year_profit += one_year_profit;
+  			}
+  			else
+  			{
+  				std::cout << "Error: Currency 3 Cover currency is Currency 2." 
+  				" User did not enter FX rate between these currencies." << std::endl;
+  			}
+  			break;
+  		case 2:
+  			{
+  			// CASE NOT APPLICABLE BECAUSE IT IS THE CURRENT CURRENCY.
+  			// No exchange rate possible.
+  			
+  			c3_cost_to_cover = std::abs(currency3size);
+
+  			boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  			"One Year P/L: $%3%\nDaily P/L: $%4%\nCost to Cover: $%5%") %currency3size %final_percent_return 
+  			%one_year_profit %daily_profit %c3_cost_to_cover;
+
+  			std::string c3_result = fmt.str();
+
+  			// create buffer and assign it to the appropriate text display widget 
+  			Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+  			c3_output->buffer(c3buff);
+
+  			// add the text to our buffer (to the box)
+  			c3buff->text(c3_result.c_str());
+
+  			// append the values to our total
+  			blended_one_year_profit += one_year_profit;
+  			}
+  			break;
+  		}
+
+  	}		
+  	else // Profit is positive or flat therefore no cost to cover calculation
+  	{
+  		boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  		"One Year P/L: $%3%\nDaily P/L: $%4%") %currency3size %final_percent_return 
+  		%one_year_profit %daily_profit;
+
+  		std::string c3_result = fmt.str();
+
+  		// create buffer and assign it to the appropriate text display widget 
+  		Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
+
+  		c3_output->buffer(c3buff);
+
+  		// add the text to our buffer (to the box)
+  		c3buff->text(c3_result.c_str());
+
+  		// append the values to our total
+  		blended_one_year_profit += one_year_profit;
+  	}
+  }
+
+  if(tbillsize != 0)
+  {
+  	// only count positive currencies 
+  	if(tbillsize > 0)
+  	{
+  		total_currency += tbillsize;
+  	}
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = tbillrate / 365;
+
+  	// set a trade fee to subtract 
+  	double trade_fee = 7.5;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (tbillsize * tbillrate) - trade_fee;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / tbillsize) * 100;
 
   	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
-  	"One Year P/L: $%3%") %currency3size %final_percent_return %one_year_profit ;
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %tbillsize %final_percent_return %one_year_profit %daily_profit;
 
-  	std::string c3_result = fmt.str();
+  	std::string tbill_result = fmt.str();
 
-  	/* std::cout << c1_result << std::endl; */
-
-  	// This should probably be global or at least in same scope as text displays
   	// create buffer and assign it to the appropriate text display widget 
-  	Fl_Text_Buffer *c3buff = new Fl_Text_Buffer();
-  	c3_output->buffer(c3buff);
+  	Fl_Text_Buffer *tbill_buffer = new Fl_Text_Buffer();
+  	tbill_output->buffer(tbill_buffer);
 
   	// add the text to our buffer (to the box)
-  	c3buff->text(c3_result.c_str());
+  	tbill_buffer->text(tbill_result.c_str());
 
   	// append the values to our total
   	blended_one_year_profit += one_year_profit;
-  	/* blended_percent_return += final_percent_return; */
   }
+
+  // PROCEEDS TEXT OUTPUT
+  if(currency1proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency1proceeds;
+  	
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency1proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency1proceeds * currency1proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency1proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency1proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c1_buffer = new Fl_Text_Buffer();
+  	c1_reinvest_output->buffer(c1_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c1_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "1 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "1 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  if(currency2proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency2proceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency2proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency2proceeds * currency2proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency2proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency2proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c2_buffer = new Fl_Text_Buffer();
+  	c2_reinvest_output->buffer(c2_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c2_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "2 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "2 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  if(currency3proceeds != 0)
+  {
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += currency3proceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = currency3proceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (currency3proceeds * currency3proceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / currency3proceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %currency3proceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *c3_buffer = new Fl_Text_Buffer();
+  	c3_reinvest_output->buffer(c3_buffer);
+
+  	// add the text to our buffer (to the box)
+  	c3_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "3 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "3 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+  if(tbillproceeds != 0)
+  {
+  	// Proceeds will always be positive
+  	
+  	// append amount to total currency since we are in possession of the short
+  	// position proceeds
+  	total_currency += tbillproceeds;
+
+  	// solve for the daily int rate 
+  	double daily_int_rate = tbillproceeds_rate / 365;
+
+  	// calculate one year rate of return 
+  	double one_year_profit = (tbillproceeds * tbillproceeds_rate) ;
+
+  	// daily profit 
+  	double daily_profit = one_year_profit / 365;
+
+  	// solve for one year percent rate of return 
+  	double final_percent_return = (one_year_profit / tbillproceeds) * 100;
+
+  	boost::format fmt = boost::format("Position Size: $%1%\nInterest Rate: %2%%%\n"
+  	"One Year P/L: $%3%\nDaily P/L: $%4%") %tbillproceeds %final_percent_return %one_year_profit %daily_profit;
+
+  	std::string result = fmt.str();
+
+  	// create buffer and assign it to the appropriate text display widget 
+  	Fl_Text_Buffer *tbill_buffer = new Fl_Text_Buffer();
+  	tbill_reinvest_output->buffer(tbill_buffer);
+
+  	// add the text to our buffer (to the box)
+  	tbill_buffer->text(result.c_str());
+
+  	// append the values to our total
+  	blended_one_year_profit += one_year_profit;
+  	std::cout << "4 one year profit: " << one_year_profit << std::endl;
+  	std::cout << "4 blended one year profit: " << blended_one_year_profit << std::endl;
+  }
+
+  // LOGIC FOR TOTALS CALCULATIONS 
 
   // solve for blended percent return 
   blended_percent_return = (blended_one_year_profit / total_currency) * 100;
 
-  // SOLVE FOR COST TO COVER IF APPLICABLE 
+  // used for solving cost to cover if applicable 
   double cost_to_cover = 0;
 
-  // used for formatting 
+  // used for formatting text to pass into buffer 
   std::string result; 
 
-  // They need to input something for functionality to work 
-  if(newfxrate != 0)
+  // if any of these currencies are negative we need to format text with cost to cover
+  if(currency1size < 0 || currency2size < 0 || currency3size < 0)
   {
-  	//NOTE: If the user plans to use this functionality, it is important that
-  	//they put the two currencies in the correct sequence to get accurate
-  	//result. If they input exchange rate of USD/CAD, Currency 1 must be USD
-  	//and currency 2 must be CAD
-  	//
-  	// determine which is the negative currency 
-  	if (currency1size < 0 && currency2size < 0)
-  	{
-  		// Get currency 2 cost to cover accounting for fx rate 
-  		double currency2_cost_to_cover = std::abs(currency2size / newfxrate);	
-  		// append it to currency1size to get total cost to cover both
-  		// currencies in currency 1. 
-  		cost_to_cover = std::abs(currency1size) + currency2_cost_to_cover;	
+  	// simply add up all cost to covers and we will get a total
+  	double total_cost_to_cover = c1_cost_to_cover + c2_cost_to_cover + c3_cost_to_cover;
 
-  		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
-  		/* std::cout << "we get here both are negative: " << cost_to_cover << std::endl; */
+  	boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%2%\n"
+  	"Blended Interest Rate: %3%%%\nOne Year P/L: $%4%\n"
+  	"Cost to Cover with FX rate: $%5%") %total_currency %total_debt %blended_percent_return 
+  	%blended_one_year_profit % total_cost_to_cover ;
 
-  		double total_debt = currency1size + currency2size;
-
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%5%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%\n"
-  		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
-  		%blended_one_year_profit % cost_to_cover %total_debt;
-
-  		// write to the string
-  		result = fmt.str();
-  	}
-  	else if(currency1size < 0)
-  	{
-  		// we want to determine how much it will cost to cover the negative balance
-  		// given the projected fx rate
-
-  		cost_to_cover = std::abs(currency1size) ;	
-  		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
-  		/* std::cout << "we get here currency 1 is negative: " << cost_to_cover << std::endl; */
-
-  		double total_debt = currency1size ;
-
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%5%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%\n"
-  		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
-  		%blended_one_year_profit % cost_to_cover %total_debt;
-
-  		// write to the string
-  		result = fmt.str();
-
-  	}
-  	else if (currency2size < 0)
-  	{
-  		// we want to determine how much it will cost to cover the negative balance
-  		// given the projected fx rate
-  		
-  		cost_to_cover = std::abs(currency2size / newfxrate);	
-  		/* std::cout << "cost to cover: " << cost_to_cover << std::endl; */
-
-  		double total_debt = currency2size ;
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%5%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%\n"
-  		"Cost to Cover with FX rate: $%4%") %total_currency %blended_percent_return 
-  		%blended_one_year_profit % cost_to_cover %total_debt;
-
-  		// write to the string
-  		result = fmt.str();
-  			/* std::cout << "we get here currency 2 is negative: " << cost_to_cover << std::endl; */
-  	}
+  	// write to the string
+  	result = fmt.str();
   }
   else
   {
-  	// FORMAT WITHOUT COST TO COVER (user didn't enable) 
-  	
-  	// determine which is the negative currency 
-  	if (currency1size < 0 && currency2size < 0)
-  	{
-  		double total_debt = currency1size + currency2size;
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%4%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%")
-  		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
+  	// no currencies are negative therefore format without cost to cover 
 
-  		// write to the string
-  		result = fmt.str();
-  	}
-  	else if(currency1size < 0)
-  	{
-  		double total_debt = currency1size ;
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%4%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%")
-  		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
+  	boost::format fmt = boost::format("Total Capital: $%1%\n"
+  	"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%\n") %total_currency 
+  	%blended_percent_return %blended_one_year_profit ;
 
-  		// write to the string
-  		result = fmt.str();
-  	}
-  	else if(currency2size < 0)
-  	{
-  		double total_debt = currency2size ;
-  		boost::format fmt = boost::format("Total Capital: $%1%\nTotal Debt: $%4%\n"
-  		"Blended Interest Rate: %2%%%\nOne Year P/L: $%3%")
-  		%total_currency %blended_percent_return %blended_one_year_profit %total_debt;
-
-  		// write to the string
-  		result = fmt.str();
-  	}
-  	else
-  	{
-  		// no negative currencies 
-
-  		boost::format fmt = boost::format("Total Capital: $%1%\nBlended Interest Rate: %2%%%\n"
-  		"One Year P/L: $%3%") %total_currency %blended_percent_return %blended_one_year_profit ;
-  	}
+  	// write to the string
+  	result = fmt.str();
   }
 
   // debug 
@@ -687,9 +2218,15 @@ void input_CB(Fl_Widget*w, void* userdata) {
   // debug
   /* std::cout << which_input << std::endl; */
 
-  // create an array of all valid characters the user can enter 
-  std::array<char, 13> valid_characters = {'0','1','2','3','4','5'
+  // different arrays with valid characters the user can enter 
+  std::array<char, 12> valid_characters = {'0','1','2','3','4','5'
+  ,'6','7','8','9','-','.'};
+
+  std::array<char, 13> rate_valid_characters = {'0','1','2','3','4','5'
   ,'6','7','8','9','%','-','.'};
+
+  std::array<char, 11> proceeds_valid_characters = {'0','1','2','3','4','5'
+  ,'6','7','8','9','.'};
 
   // set to false until proven otherwise
   bool invalid_character_found = false;
@@ -698,7 +2235,6 @@ void input_CB(Fl_Widget*w, void* userdata) {
   {
   	// input_currency1size
   	std::string_view value = input_currency1size->value();
-  	/* std::cout << "debug input: " << value << std::endl; */
 
   	// for each character in the string
   	for(int index = 0; index < value.size(); index++)
@@ -717,14 +2253,27 @@ void input_CB(Fl_Widget*w, void* userdata) {
   				break;
   			}
   		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-')
+  		{
+  			is_valid_character = false; 
+  		}
   		// if we went through the nested for loop and no valid match was found,
   		// it means we have found an invalid character at the current index. 
   		if(is_valid_character == false)
   		{
-  			std::string_view new_value = value.substr(0, value.size() -1);
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
 
-  			/* std::cout << "debug new string: " << new_value << std::endl; */
-  			input_currency1size->value(std::string(new_value).c_str());
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency1size->value(new_string.c_str());
   		}
   	}
   }
@@ -732,7 +2281,6 @@ void input_CB(Fl_Widget*w, void* userdata) {
   {
   	// input_currency1rate
   	std::string_view value = input_currency1rate->value();
-  	/* std::cout << "debug input: " << value << std::endl; */
 
   	// for each character in the string
   	for(int index = 0; index < value.size(); index++)
@@ -742,23 +2290,43 @@ void input_CB(Fl_Widget*w, void* userdata) {
   		bool is_valid_character = false;
 
   		// iterate over valid characters array and remember if we got a match
-  		for(int i = 0; i < valid_characters.size(); i++)
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
   		{	
-  			if(value[index] == valid_characters[i])
+  			if(value[index] == rate_valid_characters[i])
   			{
   				// character is valid
   				is_valid_character = true;
   				break;
   			}
   		}
+  		// catch if they inputted a - sign at any point other than the start of the input  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
   		// if we went through the nested for loop and no valid match was found,
   		// it means we have found an invalid character at the current index. 
   		if(is_valid_character == false)
   		{
-  			std::string_view new_value = value.substr(0, value.size() -1);
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
 
-  			/* std::cout << "debug new string: " << new_value << std::endl; */
-  			input_currency1rate->value(std::string(new_value).c_str());
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency1rate->value(new_string.c_str());
   		}
   	}
   }
@@ -786,14 +2354,27 @@ void input_CB(Fl_Widget*w, void* userdata) {
   				break;
   			}
   		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-')
+  		{
+  			is_valid_character = false; 
+  		}
   		// if we went through the nested for loop and no valid match was found,
   		// it means we have found an invalid character at the current index. 
   		if(is_valid_character == false)
   		{
-  			std::string_view new_value = value.substr(0, value.size() -1);
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
 
-  			/* std::cout << "debug new string: " << new_value << std::endl; */
-  			input_currency2size->value(std::string(new_value).c_str());
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency2size->value(new_string.c_str());
   		}
   	}
   }
@@ -801,7 +2382,59 @@ void input_CB(Fl_Widget*w, void* userdata) {
   {
   	// input_currency2rate
   	std::string_view value = input_currency2rate->value();
-  	/* std::cout << "debug input: " << value << std::endl; */
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+  		
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency2rate->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "currency3size")
+  {
+  	// input_currency2size
+  	std::string_view value = input_currency3size->value();
 
   	// for each character in the string
   	for(int index = 0; index < value.size(); index++)
@@ -820,6 +2453,649 @@ void input_CB(Fl_Widget*w, void* userdata) {
   				break;
   			}
   		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-')
+  		{
+  			is_valid_character = false; 
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency3size->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input == "currency3rate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_currency3rate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency3rate->value(new_string.c_str());
+  		}
+  	}
+  }
+
+  else if(which_input ==  "tbillsize")
+  {
+  	// input_currency2size
+  	std::string_view value = input_tbillsize->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < valid_characters.size(); i++)
+  		{	
+  			if(value[index] == valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-')
+  		{
+  			is_valid_character = false; 
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_tbillsize->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input == "tbillrate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_tbillrate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_tbillrate->value(new_string.c_str());
+  		}
+  	}
+  }
+
+  else if(which_input ==  "currency1proceeds")
+  {
+  	// input_currency2size
+  	std::string_view value = input_currency1proceeds->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency1proceeds->value(new_string.c_str());
+  		}
+  	}
+
+  	// PROCEEDS CANNOT EXCEED POSITION THAT GENERATED THE PROCEEDS 
+  	// obtain input values as doubles 
+  	double currency1size = std::strtod(input_currency1size->value(), nullptr);
+  	double currency1proceeds = std::strtod(input_currency1proceeds->value(), nullptr);
+
+  	// if user inputted a higher number than what would be allowed 
+  	if(currency1proceeds > std::abs(currency1size))
+  	{
+  		// Only allow two decimal places in the output 
+  		std::ostringstream ss;
+  		ss << std::fixed << std::setprecision(2) << std::abs(currency1size);
+
+  		// set it to cap at the short currency position size 
+  		input_currency1proceeds->value(ss.str().c_str());
+  	}
+  }
+  else if(which_input == "currency1proceedsrate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_currency1proceedsrate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency1proceedsrate->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "currency2proceeds")
+  {
+  	// input_currency2size
+  	std::string_view value = input_currency2proceeds->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency2proceeds->value(new_string.c_str());
+  		}
+  	}
+
+  	// PROCEEDS CANNOT EXCEED POSITION THAT GENERATED THE PROCEEDS 
+  	// obtain input values as doubles 
+  	double currency2size = std::strtod(input_currency2size->value(), nullptr);
+  	double currency2proceeds = std::strtod(input_currency2proceeds->value(), nullptr);
+
+
+  	// if user inputted a higher number than what would be allowed 
+  	if(currency2proceeds > std::abs(currency2size))
+  	{
+  		// Only allow two decimal places in the output 
+  		std::ostringstream ss;
+  		ss << std::fixed << std::setprecision(2) << std::abs(currency2size);
+
+  		// set it to cap at the short currency position size 
+  		input_currency2proceeds->value(ss.str().c_str());
+
+  	}
+  }
+  else if(which_input == "currency2proceedsrate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_currency2proceedsrate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			/* std::cout << "debug new string: " << new_value << std::endl; */
+  			input_currency2proceedsrate->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "currency3proceeds")
+  {
+  	// input_currency2size
+  	std::string_view value = input_currency3proceeds->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency3proceeds->value(new_string.c_str());
+  		}
+  	}
+
+  	// PROCEEDS CANNOT EXCEED POSITION THAT GENERATED THE PROCEEDS 
+  	// obtain input values as doubles 
+  	double currency3size = std::strtod(input_currency3size->value(), nullptr);
+  	double currency3proceeds = std::strtod(input_currency3proceeds->value(), nullptr);
+
+  	// if user inputted a higher number than what would be allowed 
+  	if(currency3proceeds > std::abs(currency3size))
+  	{
+  		// Only allow two decimal places in the output 
+  		std::ostringstream ss;
+  		ss << std::fixed << std::setprecision(2) << std::abs(currency3size);
+
+  		// set it to cap at the short currency position size 
+  		input_currency3proceeds->value(ss.str().c_str());
+  	}
+  }
+  else if(which_input == "currency3proceedsrate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_currency3proceedsrate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_currency3proceedsrate->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "tbillproceeds")
+  {
+  	// input_currency2size
+  	std::string_view value = input_tbillproceeds->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_tbillproceeds->value(new_string.c_str());
+  		}
+  	}
+
+  	// PROCEEDS CANNOT EXCEED POSITION THAT GENERATED THE PROCEEDS 
+  	// obtain input values as doubles 
+  	double tbillsize = std::strtod(input_tbillsize->value(), nullptr);
+  	double tbillproceeds = std::strtod(input_tbillproceeds->value(), nullptr);
+
+  	// if user inputted a higher number than what would be allowed 
+  	if(tbillproceeds > std::abs(tbillsize))
+  	{
+  		// Only allow two decimal places in the output 
+  		std::ostringstream ss;
+  		ss << std::fixed << std::setprecision(2) << std::abs(tbillsize);
+
+  		// set it to cap at the short currency position size 
+  		input_tbillproceeds->value(ss.str().c_str());
+  	}
+  }
+  else if(which_input == "tbillproceedsrate")
+  {
+  	// input_currency2rate
+  	std::string_view value = input_tbillproceedsrate->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < rate_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == rate_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// catch if they inputted a - sign at any point other than the start of the number  
+  		if (index > 0 && value[index] == '-' )
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// catch if they inputted a % sign at any point other than the end of the input
+  		if(index < value.size() - 1 && value[index] == '%')
+  		{
+  			is_valid_character = false; 
+  		}
+
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			// create a new string that removes the invalid character from the string
+  			std::string_view prefix = value.substr(0, index);
+  			std::string_view suffix = value.substr(index + 1);
+
+  			// Combine the substrings 
+  			std::string new_string = std::string(prefix) + std::string(suffix);
+
+  			/* std::cout << "Original String: " << value << std::endl; */
+  			/* std::cout << "String Without Character at Index " << index << ": " */
+  			/* << new_string << std::endl; */
+
+  			input_tbillproceedsrate->value(new_string.c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "fxrate1")
+  {
+  	// input_currency2size
+  	std::string_view value = input_fxrate1->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
   		// if we went through the nested for loop and no valid match was found,
   		// it means we have found an invalid character at the current index. 
   		if(is_valid_character == false)
@@ -827,7 +3103,73 @@ void input_CB(Fl_Widget*w, void* userdata) {
   			std::string_view new_value = value.substr(0, value.size() -1);
 
   			/* std::cout << "debug new string: " << new_value << std::endl; */
-  			input_currency2rate->value(std::string(new_value).c_str());
+  			input_fxrate1->value(std::string(new_value).c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "fxrate2")
+  {
+  	// input_currency2size
+  	std::string_view value = input_fxrate2->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			std::string_view new_value = value.substr(0, value.size() -1);
+
+  			/* std::cout << "debug new string: " << new_value << std::endl; */
+  			input_fxrate2->value(std::string(new_value).c_str());
+  		}
+  	}
+  }
+  else if(which_input ==  "fxrate3")
+  {
+  	// input_currency2size
+  	std::string_view value = input_fxrate3->value();
+
+  	// for each character in the string
+  	for(int index = 0; index < value.size(); index++)
+  	{
+  		// compare current character of the input string against list of valid
+  		// characters to see if the character is valid.
+  		bool is_valid_character = false;
+
+  		// iterate over valid characters array and remember if we got a match
+  		for(int i = 0; i < proceeds_valid_characters.size(); i++)
+  		{	
+  			if(value[index] == proceeds_valid_characters[i])
+  			{
+  				// character is valid
+  				is_valid_character = true;
+  				break;
+  			}
+  		}
+  		// if we went through the nested for loop and no valid match was found,
+  		// it means we have found an invalid character at the current index. 
+  		if(is_valid_character == false)
+  		{
+  			std::string_view new_value = value.substr(0, value.size() -1);
+
+  			/* std::cout << "debug new string: " << new_value << std::endl; */
+  			input_fxrate3->value(std::string(new_value).c_str());
   		}
   	}
   }
@@ -868,105 +3210,292 @@ Fl_Input *input_tbillsize=(Fl_Input *)0;
 
 Fl_Input *input_tbillrate=(Fl_Input *)0;
 
-Fl_Input *input_newfxrate=(Fl_Input *)0;
+Fl_Flex *middle_left_flex=(Fl_Flex *)0;
+
+Fl_Input *input_currency1proceeds=(Fl_Input *)0;
+
+Fl_Input *input_currency1proceedsrate=(Fl_Input *)0;
+
+Fl_Input *input_currency3proceeds=(Fl_Input *)0;
+
+Fl_Input *input_currency3proceedsrate=(Fl_Input *)0;
+
+Fl_Flex *middle_right_flex=(Fl_Flex *)0;
+
+Fl_Input *input_currency2proceeds=(Fl_Input *)0;
+
+Fl_Input *input_currency2proceedsrate=(Fl_Input *)0;
+
+Fl_Input *input_tbillproceeds=(Fl_Input *)0;
+
+Fl_Input *input_tbillproceedsrate=(Fl_Input *)0;
+
+Fl_Input *input_fxrate1=(Fl_Input *)0;
+
+Fl_Button *invert_rate1=(Fl_Button *)0;
+
+Fl_Input *input_fxrate2=(Fl_Input *)0;
+
+Fl_Button *invert_rate2=(Fl_Button *)0;
+
+Fl_Input *input_fxrate3=(Fl_Input *)0;
+
+Fl_Button *invert_rate3=(Fl_Button *)0;
+
+Fl_Grid *header_grid1=(Fl_Grid *)0;
+
+Fl_Output *account_positions_header=(Fl_Output *)0;
+
+Fl_Grid *header_grid2=(Fl_Grid *)0;
+
+Fl_Output *proceeds_positions_header=(Fl_Output *)0;
+
+Fl_Grid *header_grid4=(Fl_Grid *)0;
+
+Fl_Output *settings_header=(Fl_Output *)0;
 
 int main(int argc, char **argv) {
-  { window = new Fl_Double_Window(584, 264, "Currency Spread Calculator V2 - FLTK v1.4");
+  { window = new Fl_Double_Window(586, 496, "Currency Spread Calculator - FLTK v1.4");
     window->callback((Fl_Callback*)WinQuit_CB);
     window->align(Fl_Align(FL_ALIGN_CLIP|FL_ALIGN_INSIDE));
-    { Fl_Group* o = new Fl_Group(4, 7, 574, 252);
+    { Fl_Group* o = new Fl_Group(4, 6, 578, 482);
       o->box(FL_ENGRAVED_BOX);
-      { Fl_Box* o = new Fl_Box(4, 7, 573, 61, "label");
+      { Fl_Box* o = new Fl_Box(4, 34, 573, 61, "label");
         o->box(FL_OXY_BUTTON_DOWN_BOX);
         o->labeltype(FL_NO_LABEL);
       } // Fl_Box* o
-      { Fl_Box* o = new Fl_Box(4, 67, 573, 58, "label");
+      { Fl_Box* o = new Fl_Box(4, 94, 573, 58, "label");
         o->box(FL_OXY_BUTTON_DOWN_BOX);
         o->color((Fl_Color)28);
         o->labeltype(FL_NO_LABEL);
       } // Fl_Box* o
-      { left_flex = new Fl_Flex(175, 8, 101, 117);
-        { input_currency1size = new Fl_Input(175, 8, 101, 30, "Currency 1 position size:");
+      { Fl_Box* o = new Fl_Box(4, 178, 576, 61, "label");
+        o->box(FL_OXY_BUTTON_DOWN_BOX);
+        o->labeltype(FL_NO_LABEL);
+      } // Fl_Box* o
+      { Fl_Box* o = new Fl_Box(4, 238, 576, 58, "label");
+        o->box(FL_OXY_BUTTON_DOWN_BOX);
+        o->color((Fl_Color)28);
+        o->labeltype(FL_NO_LABEL);
+      } // Fl_Box* o
+      { left_flex = new Fl_Flex(175, 35, 101, 117);
+        { input_currency1size = new Fl_Input(175, 35, 101, 30, "Currency 1 position size:");
           input_currency1size->callback((Fl_Callback*)input_CB, (void*)("currency1size"));
           input_currency1size->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency1size
-        { input_currency1rate = new Fl_Input(175, 38, 101, 29, "Currency 1 interest rate:");
+        { input_currency1rate = new Fl_Input(175, 65, 101, 29, "Currency 1 interest rate:");
           input_currency1rate->callback((Fl_Callback*)input_CB, (void*)("currency1rate"));
           input_currency1rate->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency1rate
-        { input_currency3size = new Fl_Input(175, 67, 101, 29, "Currency 3 position size:");
+        { input_currency3size = new Fl_Input(175, 94, 101, 29, "Currency 3 position size:");
           input_currency3size->callback((Fl_Callback*)input_CB, (void*)("currency3size"));
           input_currency3size->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency3size
-        { input_currency3rate = new Fl_Input(175, 96, 101, 29, "Currency 3 interest rate:");
+        { input_currency3rate = new Fl_Input(175, 123, 101, 29, "Currency 3 interest rate:");
           input_currency3rate->callback((Fl_Callback*)input_CB, (void*)("currency3rate"));
           input_currency3rate->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency3rate
         left_flex->end();
       } // Fl_Flex* left_flex
-      { submit_button = new Fl_Return_Button(433, 210, 133, 37, "Calculate");
+      { submit_button = new Fl_Return_Button(433, 439, 133, 37, "Calculate");
         submit_button->tooltip("Press this once values are entered");
         submit_button->box(FL_OXY_UP_BOX);
         submit_button->color((Fl_Color)16);
         submit_button->callback((Fl_Callback*)Calculate_CB, (void*)("calculate"));
         submit_button->when(FL_WHEN_RELEASE | FL_WHEN_ENTER_KEY);
       } // Fl_Return_Button* submit_button
-      { clear_button = new Fl_Button(54, 214, 110, 29, "Clear All");
+      { clear_button = new Fl_Button(54, 443, 110, 29, "Clear All");
         clear_button->box(FL_OXY_UP_BOX);
         clear_button->color((Fl_Color)31);
         clear_button->labelcolor((Fl_Color)55);
         clear_button->callback((Fl_Callback*)clear_CB);
       } // Fl_Button* clear_button
-      { save_button = new Fl_Button(303, 210, 120, 37, "Save");
+      { save_button = new Fl_Button(303, 439, 120, 37, "Save");
         save_button->box(FL_OXY_UP_BOX);
         save_button->callback((Fl_Callback*)save_CB);
       } // Fl_Button* save_button
-      { load_button = new Fl_Button(174, 210, 120, 37, "Load");
+      { load_button = new Fl_Button(174, 439, 120, 37, "Load");
         load_button->box(FL_OXY_UP_BOX);
         load_button->callback((Fl_Callback*)load_CB);
       } // Fl_Button* load_button
-      { right_flex = new Fl_Flex(450, 8, 128, 118);
-        { input_currency2size = new Fl_Input(450, 8, 128, 30, "Currency 2 position size:");
+      { right_flex = new Fl_Flex(450, 35, 131, 118);
+        { input_currency2size = new Fl_Input(450, 35, 131, 30, "Currency 2 position size:");
           input_currency2size->callback((Fl_Callback*)input_CB, (void*)("currency2size"));
           input_currency2size->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency2size
-        { input_currency2rate = new Fl_Input(450, 38, 128, 30, "Currency 2 interest rate:");
+        { input_currency2rate = new Fl_Input(450, 65, 131, 30, "Currency 2 interest rate:");
           input_currency2rate->callback((Fl_Callback*)input_CB, (void*)("currency2rate"));
           input_currency2rate->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_currency2rate
-        { input_tbillsize = new Fl_Input(450, 68, 128, 29, "T-Bill position size:");
+        { input_tbillsize = new Fl_Input(450, 95, 131, 29, "Long T-Bill position size:");
           input_tbillsize->callback((Fl_Callback*)input_CB, (void*)("tbillsize"));
           input_tbillsize->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_tbillsize
-        { input_tbillrate = new Fl_Input(450, 97, 128, 29, "T-Bill interest rate:");
+        { input_tbillrate = new Fl_Input(450, 124, 131, 29, "T-Bill interest rate:");
           input_tbillrate->callback((Fl_Callback*)input_CB, (void*)("tbillrate"));
           input_tbillrate->when(FL_WHEN_CHANGED);
         } // Fl_Input* input_tbillrate
         right_flex->end();
       } // Fl_Flex* right_flex
-      { Fl_Box* o = new Fl_Box(46, 156, 308, 22, "label");
-        o->box(FL_OXY_BUTTON_DOWN_BOX);
-        o->color(FL_WHITE);
-        o->selection_color((Fl_Color)78);
-        o->labeltype(FL_NO_LABEL);
-        o->hide();
-      } // Fl_Box* o
-      { Fl_Box* o = new Fl_Box(45, 146, 418, 43, "label");
+      { middle_left_flex = new Fl_Flex(176, 179, 101, 117);
+        { input_currency1proceeds = new Fl_Input(176, 179, 101, 30, "Currency 1 proceeds:");
+          input_currency1proceeds->callback((Fl_Callback*)input_CB, (void*)("currency1proceeds"));
+          input_currency1proceeds->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency1proceeds
+        { input_currency1proceedsrate = new Fl_Input(176, 209, 101, 29, "Proceeds Rate of Return:");
+          input_currency1proceedsrate->callback((Fl_Callback*)input_CB, (void*)("currency1proceedsrate"));
+          input_currency1proceedsrate->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency1proceedsrate
+        { input_currency3proceeds = new Fl_Input(176, 238, 101, 29, "Currency 3 proceeds:");
+          input_currency3proceeds->callback((Fl_Callback*)input_CB, (void*)("currency3proceeds"));
+          input_currency3proceeds->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency3proceeds
+        { input_currency3proceedsrate = new Fl_Input(176, 267, 101, 29, "Proceeds Rate of Return:");
+          input_currency3proceedsrate->callback((Fl_Callback*)input_CB, (void*)("currency3proceedsrate"));
+          input_currency3proceedsrate->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency3proceedsrate
+        middle_left_flex->end();
+      } // Fl_Flex* middle_left_flex
+      { middle_right_flex = new Fl_Flex(450, 179, 131, 118);
+        { input_currency2proceeds = new Fl_Input(450, 179, 131, 30, "Currency 2 proceeds:");
+          input_currency2proceeds->callback((Fl_Callback*)input_CB, (void*)("currency2proceeds"));
+          input_currency2proceeds->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency2proceeds
+        { input_currency2proceedsrate = new Fl_Input(450, 209, 131, 30, "Proceeds Rate of Return:");
+          input_currency2proceedsrate->callback((Fl_Callback*)input_CB, (void*)("currency2proceedsrate"));
+          input_currency2proceedsrate->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_currency2proceedsrate
+        { input_tbillproceeds = new Fl_Input(450, 239, 131, 29, "Short T-Bill Proceeds:");
+          input_tbillproceeds->callback((Fl_Callback*)input_CB, (void*)("tbillproceeds"));
+          input_tbillproceeds->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_tbillproceeds
+        { input_tbillproceedsrate = new Fl_Input(450, 268, 131, 29, "Proceeds Rate of Return:");
+          input_tbillproceedsrate->callback((Fl_Callback*)input_CB, (void*)("tbillproceedsrate"));
+          input_tbillproceedsrate->when(FL_WHEN_CHANGED);
+        } // Fl_Input* input_tbillproceedsrate
+        middle_right_flex->end();
+      } // Fl_Flex* middle_right_flex
+      { Fl_Box* o = new Fl_Box(29, 323, 480, 32, "label");
         o->box(FL_THIN_UP_FRAME);
         o->color((Fl_Color)40);
         o->selection_color((Fl_Color)78);
         o->labeltype(FL_NO_LABEL);
+        o->labelsize(15);
       } // Fl_Box* o
-      { input_newfxrate = new Fl_Input(354, 156, 99, 23, "Projected FX Rate Between Currency 1 && 2:");
-        input_newfxrate->box(FL_GTK_THIN_DOWN_BOX);
-        input_newfxrate->color((Fl_Color)96);
-        input_newfxrate->selection_color(FL_LIGHT1);
-        input_newfxrate->labelsize(15);
-        input_newfxrate->labelcolor(FL_GRAY0);
-        input_newfxrate->textcolor((Fl_Color)55);
-        input_newfxrate->callback((Fl_Callback*)input_CB, (void*)("newfxrate"));
-        input_newfxrate->when(FL_WHEN_CHANGED);
-      } // Fl_Input* input_newfxrate
+      { input_fxrate1 = new Fl_Input(336, 328, 99, 23, "Projected FX Rate Between Currency 1 && 2:");
+        input_fxrate1->box(FL_GTK_THIN_DOWN_BOX);
+        input_fxrate1->color((Fl_Color)96);
+        input_fxrate1->selection_color(FL_LIGHT1);
+        input_fxrate1->labelsize(15);
+        input_fxrate1->labelcolor(FL_GRAY0);
+        input_fxrate1->textcolor((Fl_Color)55);
+        input_fxrate1->callback((Fl_Callback*)input_CB, (void*)("fxrate1"));
+        input_fxrate1->when(FL_WHEN_CHANGED);
+      } // Fl_Input* input_fxrate1
+      { invert_rate1 = new Fl_Button(440, 328, 64, 22, "Invert");
+        invert_rate1->callback((Fl_Callback*)invert_CB, (void*)("invert1"));
+      } // Fl_Button* invert_rate1
+      { Fl_Box* o = new Fl_Box(29, 357, 480, 32, "label");
+        o->box(FL_THIN_UP_FRAME);
+        o->color((Fl_Color)40);
+        o->selection_color((Fl_Color)78);
+        o->labeltype(FL_NO_LABEL);
+        o->labelsize(15);
+      } // Fl_Box* o
+      { input_fxrate2 = new Fl_Input(336, 362, 99, 23, "Projected FX Rate Between Currency 2 && 3:");
+        input_fxrate2->box(FL_GTK_THIN_DOWN_BOX);
+        input_fxrate2->color((Fl_Color)96);
+        input_fxrate2->selection_color(FL_LIGHT1);
+        input_fxrate2->labelsize(15);
+        input_fxrate2->labelcolor(FL_GRAY0);
+        input_fxrate2->textcolor((Fl_Color)55);
+        input_fxrate2->callback((Fl_Callback*)input_CB, (void*)("fxrate2"));
+        input_fxrate2->when(FL_WHEN_CHANGED);
+      } // Fl_Input* input_fxrate2
+      { invert_rate2 = new Fl_Button(440, 362, 64, 22, "Invert");
+        invert_rate2->callback((Fl_Callback*)invert_CB, (void*)("invert2"));
+      } // Fl_Button* invert_rate2
+      { Fl_Box* o = new Fl_Box(29, 391, 480, 32, "label");
+        o->box(FL_THIN_UP_FRAME);
+        o->color((Fl_Color)40);
+        o->selection_color((Fl_Color)78);
+        o->labeltype(FL_NO_LABEL);
+        o->labelsize(15);
+      } // Fl_Box* o
+      { input_fxrate3 = new Fl_Input(336, 396, 99, 23, "Projected FX Rate Between Currency 1 && 3:");
+        input_fxrate3->box(FL_GTK_THIN_DOWN_BOX);
+        input_fxrate3->color((Fl_Color)96);
+        input_fxrate3->selection_color(FL_LIGHT1);
+        input_fxrate3->labelsize(15);
+        input_fxrate3->labelcolor(FL_GRAY0);
+        input_fxrate3->textcolor((Fl_Color)55);
+        input_fxrate3->callback((Fl_Callback*)input_CB, (void*)("fxrate3"));
+        input_fxrate3->when(FL_WHEN_CHANGED);
+      } // Fl_Input* input_fxrate3
+      { invert_rate3 = new Fl_Button(440, 396, 64, 22, "Invert");
+        invert_rate3->callback((Fl_Callback*)invert_CB, (void*)("invert3"));
+      } // Fl_Button* invert_rate3
+      { header_grid1 = new Fl_Grid(5, 7, 572, 27);
+        header_grid1->box(FL_NO_BOX);
+        header_grid1->align(Fl_Align(FL_ALIGN_TOP|FL_ALIGN_INSIDE));
+        header_grid1->deactivate();
+        header_grid1->layout(1, 3);
+        { account_positions_header = new Fl_Output(189, 7, 204, 27);
+          account_positions_header->box(FL_NO_BOX);
+          account_positions_header->color(FL_BACKGROUND_COLOR);
+          account_positions_header->selection_color(FL_BACKGROUND_COLOR);
+          account_positions_header->labeltype(FL_NO_LABEL);
+          account_positions_header->labelsize(15);
+          account_positions_header->align(Fl_Align(FL_ALIGN_RIGHT));
+          account_positions_header->value("Account Positions (Long/Short)");
+        } // Fl_Output* account_positions_header
+        Fl_Grid::Cell *cell = NULL;
+        cell = header_grid1->widget(header_grid1->child(0), 0, 1, 1, 1, 48);
+        if (cell) cell->minimum_size(21, 20);
+        header_grid1->end();
+      } // Fl_Grid* header_grid1
+      { header_grid2 = new Fl_Grid(5, 152, 572, 27);
+        header_grid2->box(FL_NO_BOX);
+        header_grid2->align(Fl_Align(FL_ALIGN_TOP|FL_ALIGN_INSIDE));
+        header_grid2->deactivate();
+        header_grid2->layout(1, 3);
+        static const int colwidths[] = { 12, 0, 0 };
+        header_grid2->col_width(colwidths, 3);
+        { proceeds_positions_header = new Fl_Output(197, 152, 200, 27);
+          proceeds_positions_header->box(FL_NO_BOX);
+          proceeds_positions_header->color(FL_BACKGROUND_COLOR);
+          proceeds_positions_header->selection_color(FL_BACKGROUND_COLOR);
+          proceeds_positions_header->labeltype(FL_NO_LABEL);
+          proceeds_positions_header->labelsize(15);
+          proceeds_positions_header->align(Fl_Align(FL_ALIGN_RIGHT));
+          proceeds_positions_header->value("Proceeds from Short Positions (Long Only)");
+        } // Fl_Output* proceeds_positions_header
+        Fl_Grid::Cell *cell = NULL;
+        cell = header_grid2->widget(header_grid2->child(0), 0, 1, 1, 1, 48);
+        if (cell) cell->minimum_size(20, 20);
+        header_grid2->end();
+      } // Fl_Grid* header_grid2
+      { header_grid4 = new Fl_Grid(7, 296, 572, 27);
+        header_grid4->box(FL_NO_BOX);
+        header_grid4->layout(1, 3);
+        static const int colwidths[] = { 65, 0, 0 };
+        header_grid4->col_width(colwidths, 3);
+        { settings_header = new Fl_Output(235, 296, 182, 27);
+          settings_header->box(FL_NO_BOX);
+          settings_header->color(FL_GRAY0);
+          settings_header->selection_color(FL_GRAY0);
+          settings_header->labeltype(FL_NO_LABEL);
+          settings_header->labelsize(15);
+          settings_header->labelcolor(FL_GRAY0);
+          settings_header->textcolor(FL_GRAY0);
+          settings_header->align(Fl_Align(FL_ALIGN_RIGHT));
+          settings_header->value("General Settings");
+        } // Fl_Output* settings_header
+        Fl_Grid::Cell *cell = NULL;
+        cell = header_grid4->widget(header_grid4->child(0), 0, 1, 1, 1, 48);
+        if (cell) cell->minimum_size(20, 20);
+        header_grid4->end();
+      } // Fl_Grid* header_grid4
       o->end();
     } // Fl_Group* o
     window->set_non_modal();
@@ -1026,8 +3555,38 @@ int main(int argc, char **argv) {
   			const unsigned char* tbillrate = sqlite3_column_text(stmt, 8);	
   			input_tbillrate->value((const char*)tbillrate);
 
-  			const unsigned char* newfxrate = sqlite3_column_text(stmt, 9);	
-  			input_newfxrate->value((const char*)newfxrate);
+  			const unsigned char* currency1proceeds_size = sqlite3_column_text(stmt, 9);	
+  			input_currency1proceeds->value((const char*)currency1proceeds_size);
+
+  			const unsigned char* currency1proceeds_rate = sqlite3_column_text(stmt, 10);	
+  			input_currency1proceedsrate->value((const char*)currency1proceeds_rate);
+
+  			const unsigned char* currency2proceeds_size = sqlite3_column_text(stmt, 11);	
+  			input_currency2proceeds->value((const char*)currency2proceeds_size);
+
+  			const unsigned char* currency2proceeds_rate = sqlite3_column_text(stmt, 12);	
+  			input_currency2proceedsrate->value((const char*)currency2proceeds_rate);
+
+  			const unsigned char* currency3proceeds_size = sqlite3_column_text(stmt, 13);	
+  			input_currency3proceeds->value((const char*)currency3proceeds_size);
+
+  			const unsigned char* currency3proceeds_rate = sqlite3_column_text(stmt, 14);	
+  			input_currency3proceedsrate->value((const char*)currency3proceeds_rate);
+
+  			const unsigned char* tbillproceeds = sqlite3_column_text(stmt, 15);	
+  			input_tbillproceeds->value((const char*)tbillproceeds);
+
+  			const unsigned char* tbillproceeds_rate = sqlite3_column_text(stmt, 16);	
+  			input_tbillproceedsrate->value((const char*)tbillproceeds_rate);
+
+  			const unsigned char* fxrate1 = sqlite3_column_text(stmt, 17);	
+  			input_fxrate1->value((const char*)fxrate1);
+
+  			const unsigned char* fxrate2 = sqlite3_column_text(stmt, 18);	
+  			input_fxrate2->value((const char*)fxrate2);
+
+  			const unsigned char* fxrate3 = sqlite3_column_text(stmt, 19);	
+  			input_fxrate3->value((const char*)fxrate3);
   		}
 
   		// The application must finalize every prepared statement in order to avoid resource leaks.
