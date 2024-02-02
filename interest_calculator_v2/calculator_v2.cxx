@@ -139,43 +139,6 @@ void load_CB(Fl_Widget*w, void* userdata) {
 
 void save_CB(Fl_Widget*w, void* userdata) {
   // Set up to read existing sqlite3 database (or create if not exists)
-  	
-  // obtain the position size values for 4 positions
-  /* std::string_view tbillsize = input_tbillsize->value() ; */
-  /* std::string_view currency1size = input_currency1size->value(); */
-  /* std::string_view currency2size = input_currency2size->value(); */
-  /* std::string_view currency3size = input_currency3size->value(); */
-
-  // obtain the interest rates for 4 positions
-  /* std::string_view tbillrate = input_tbillrate->value() ; */
-  /* std::string_view currency1rate = input_currency1rate->value(); */
-  /* std::string_view currency2rate = input_currency2rate->value(); */
-  /* std::string_view currency3rate = input_currency3rate->value(); */
-
-  // obtain the position sizes for 4 proceeds positions 
-  /* std::string_view tbillproceeds_size = input_tbillproceeds->value() ; */
-  /* std::string currency1proceeds_size = input_currency1proceeds->value(); */
-  /* std::string_view currency2proceeds_size = input_currency2proceeds->value(); */
-  /* std::string_view currency3proceeds_size = input_currency3proceeds->value(); */
-
-  // obtain the interest rates for 4 proceeds positions
-  /* std::string_view tbillproceeds_rate = input_tbillproceedsrate->value() ; */
-  /* std::string_view currency1proceeds_rate = input_currency1proceedsrate->value(); */
-  /* std::string_view currency2proceeds_rate = input_currency2proceedsrate->value(); */
-  /* std::string_view currency3proceeds_rate = input_currency3proceedsrate->value(); */
-
-  // obtain fx rate change values 
-  /* std::string_view fxrate1 = input_fxrate1->value() ; */
-  /* std::string_view fxrate2 = input_fxrate2->value() ; */
-  /* std::string_view fxrate3 = input_fxrate3->value() ; */
-
-  // debug 
-  /* std::cout << "tbillsize: " << tbillsize << " tbillrate: " << tbillrate << */
-  /* " 1size: " << currency1size << " 1rate: " << currency1rate << " 2size: " << */ 
-  /* currency2size << " 2rate: " << currency2rate << " 3size: " */ 
-  /* << currency3size << " 3rate: " << currency3rate << std::endl; */
-
-  /* std::cout << "new fx rate: " << fxrate1 << std::endl; */
 
   // open the database
   sqlite3_open(dbPath, &db);
