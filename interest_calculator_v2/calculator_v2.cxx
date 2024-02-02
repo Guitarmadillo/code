@@ -14,13 +14,10 @@
 // So far I dig fltk 1.4 quite a bit. 
 
 // The goal of the application is allow the user to get a yearly average rate
-// of return that takes multiple currency or fixed income positions into account.
+// of return that takes multiple currency positions as well as the proceeds of 
+// short currency positions into account.
 
-// The program currently allows the user to input two currency positions, 
-// a fixed income position, and a 3rd currency position.
-
-// currency 1 and 2 can be either positive or negative, currency 3 can 
-// only be the result of one of the short currencies. 
+// More documentation will follow.
 
 // sqlite objects
 static int version_num = 21;
