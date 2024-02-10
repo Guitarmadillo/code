@@ -21,7 +21,7 @@ sc-allow
 ssh home "wine /mnt/SierraChart/ACS_Source/sc-release.exe"
 :: go to where the new binary is on this virtual machine
 cd C:\SierraChart\Data
-:: copy the new binary back over to home machine to debug on wine/linux
+:: copy the new binary back over to home machine to run on wine/linux
 scp -F C:\Users\chris\.ssh\config %source%_64.dll christian@home:/mnt/SierraChart/Data/%source%_64.dll
 :: call allow dll function through ssh on home machine
 ssh home "wine /mnt/SierraChart/ACS_Source/sc-allow.exe"
