@@ -9,6 +9,8 @@
 
 #include "json.hpp" // convenience 
 
+// std::string version = 133;
+
 // Sleep is only necessary for a specific case to wait the http request thread for 1 second 
 #ifdef WIN32
 	#include <windows.h>		// Sleep(), in miliseconds
