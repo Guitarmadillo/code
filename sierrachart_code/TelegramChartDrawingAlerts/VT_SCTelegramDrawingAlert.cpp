@@ -1,4 +1,4 @@
-#include "sierrachart.h"
+#include "sierrachart.h"  
 
 #include <boost/format.hpp>
 #include <curl/curl.h>
@@ -6,30 +6,16 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
-
 #include "json.hpp" // convenience 
 
-// std::string version = 133;
-
-// Sleep is only necessary for a specific case to wait the http request thread for 1 second 
-#ifdef WIN32
-	#include <windows.h>		// Sleep(), in miliseconds
-#else
-	#include <unistd.h>			// usleep(), in microseconds
-	#define Sleep( m ) usleep( m*1000 )
-#endif
-
+// const int StudyVersion = 134 // Last Updated on 2024 02 24
 SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/* std::string debug_request; */ 
 // This function performs a curl synchronous request to the inputted URL
-int send_photo(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
+void send_photo(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
 {
-	// Pause thread to allow the screenshot file to be properly saved. Some
-	// image files take longer to be saved which can result in the previously
-	// saved screenshot being passed into the request instead of the new one.
-	// This pause allows some time for the new image file to be saved. 
-	Sleep(1000);
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	CURL* curl = curl_easy_init();
 
@@ -42,6 +28,18 @@ int send_photo(const SCString& URL, const std::string& ChatID, const std::string
 		// Add form fields (specific to telegram sendPhoto method)
 		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
 		"chat_id", CURLFORM_COPYCONTENTS, ChatID.c_str(), CURLFORM_END);
+
+		// handle if there is a group subtopic ID in the Chat ID 
+		std::size_t ThreadIDPos = ChatID.find("_");
+		if(ThreadIDPos != std::string::npos)
+		{
+			const std::string MessageThreadID = ChatID.substr(ThreadIDPos + 1);
+			curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
+			"message_thread_id", CURLFORM_COPYCONTENTS, MessageThreadID.c_str(), CURLFORM_END);
+			// Note: Telegram Bot API Specifies INT type for this argument
+			// however since we are sending multipart form data everything is
+			// plain text so c_str() needs to be used. 
+		}
 		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
 		"photo", CURLFORM_FILE, FilePath.c_str(), CURLFORM_END);
 		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
@@ -55,37 +53,25 @@ int send_photo(const SCString& URL, const std::string& ChatID, const std::string
 		// Set the form data
 		curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
 
-		// TODO: Could add some redundancy for this http request for users with
-		// poor internet connections. 
-		//
-		// Attempt the request for a maximum of x times
-        /* for (int attempts = 0; attempts < 6; attempts++) */ 
-		/* { */
+		// for debug 
+		/* // Pass a pointer to std::string variable to store the response */
+        /* curl_easy_setopt(curl, CURLOPT_WRITEDATA, &debug_request); */
 
-			// Perform the HTTP POST request
-			// This causes SC to freeze
-			CURLcode res = curl_easy_perform(curl);
+		// Perform the HTTP POST request
+		CURLcode res = curl_easy_perform(curl);
 
-			// Check for errors
-			if (res != CURLE_OK) 
-			{
-				// If we get here request failed or timed out. 
-				/* // Pause 10 seconds before trying the request again */ 
-				/* Sleep(10000); */
-			}
-			else
-			{
-				// Request succeeded carry on. 
-				/* break; */
-			}
-		/* } */
+		// Check for errors
+		if (res != CURLE_OK) 
+		{
+			// debug if necessary 
+			// Append the libcurl error information to your string
+			/* debug_request = "Curl request failed: " + std::string(curl_easy_strerror(res)); */
+		}
 
 		// Clean up
 		curl_formfree(formpost);
 		curl_easy_cleanup(curl);
 	}
-
-	return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +89,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	SCInputRef Input_FindDuplicateStudies = sc.Input[8];
 	SCInputRef Input_CustomizeMessageContent = sc.Input[9];
 
+	SCString msg; // logging object
+
 	// Declare Necessary persistent variables
 	// These are items that need to be remembered between calls to the study function 
 	
@@ -117,8 +105,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// keep track of the very first search for the file
 	// This is in order to handle the behaviour for the very first time Sierra Chart is started 
 	int& FirstTimeStart = sc.GetPersistentInt(5); 												  
-
-	SCString msg; // logging object
 
 	if (sc.SetDefaults)
 	{
@@ -167,7 +153,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 
 		"<br> <br> <strong><u>Step 2:</u></strong> "
-		"<br> <br> Get the Telegram Chat ID of where we want to send the alert. The easiest way is to use Telegram Web to get the Telegram Chat ID. <u>Telegram Groups and Private Chats are supported.</u> Channels are a bit more complex so they have been left out for the time being. <span style=\"background-color: yellow; text-decoration: underline;\">It is necessary to be on Telegram Web version A to get the Chat ID from the browser address bar.</span> The version can be selected from the settings window in the top left corner when using Telegram Web. The Chat ID for the currently open chat appears in the address bar. Try changing to different chats to see the end of the address bar change. Example: https://web.telegram.org/a/#-12345678 where '-12345567' is the Chat ID. Groups and Group Sub-Topics typically have negative numbers as the Chat ID. To get your personal chat ID, go to the Saved Messages chat. On Telegram Web this can be accessed by clicking at the top left and selecting 'Saved Messages'. The address bar should display your Private Chat ID. "
+		"<br> <br> Get the Telegram Chat ID of where we want to send the alert. The easiest way is to use Telegram Web to get the Telegram Chat ID. Telegram Groups, Group Subtopics, Channels and Private Chats are supported. <span style=\"background-color: yellow; font-weight: bold; \">It is necessary to be on Telegram Web version A to get the Chat ID from the browser address bar.</span> The version can be selected from the settings window in the top left corner when using Telegram Web. The Chat ID for the currently open chat appears in the address bar. Try changing to different chats to see the end of the address bar change. Example: https://web.telegram.org/a/#-12345678 where '-12345567' is the Chat ID. Groups and Group Sub-Topics typically have negative numbers as the Chat ID. To get your personal chat ID, go to the Saved Messages chat. On Telegram Web this can be accessed by clicking at the top left and selecting 'Saved Messages'. The address bar should display your Private Chat ID. In order to the send messages to a Telegram Channel it is necessary to give the bot administrator permissions in the channel, specifically with the permission to send messages. "
 
 		" <br> <br> The default bot that the study uses on Telegram is <a href = https://t.me/vt_sierrachart_sender_bot target=_blank rel=noopener noreferrer >https://t.me/vt_sierrachart_sender_bot.</a> "
 		"<br> You need to message this bot with /start on Telegram or add it to your group, unless you are using your own bot. Telegram bots cannot message you first and they cannot read messages sent by other bots. "  
@@ -221,6 +207,14 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		"<br> <br> 1. Open the SC Alert Manager by going to Window > Alert Manager."
 		"<br> <br> 2. Monitor the alerts being added to the Alert Manager."
  		"<br> <br> 3. If you are encountering a particular alert that is not going through to Telegram, please inform the study developer at support@verrillotrading.com as soon as possible. "
+
+		"<br> <br> <strong><u>Known or potential Issues :</u></strong> "
+
+		"<br> <br> There are some settings in Sierra Chart that can change the formatting for text that is saved to the Alert Log files. "
+		"<br> Here are settings that are known to cause issues with the study: "
+		
+		"<br> <br> 1. General Settings > Charts > Show Chart Number First on Chart Name "
+		"<br> This setting should remain set to <strong><u>no</u></strong>. "
 
 		"<br> <br> <strong><u>INFO ABOUT THE LOG FILE PATH:</u></strong> "
 
@@ -354,65 +348,20 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	{
 		// User wants to use the default bot. On the github code there is no default bot so the study will just bomb out.
 		sc.AddMessageToLog("If you see this message it means you compiled the study on your own. "
-		"1. You need to remove or comment out lines 271-274."
-		" 2. It is necessary for you to use your own bot using the provided input settings.",1);
+		" It is necessary for you to use your own bot using the provided study input field.",1);
 		return; 
 
-		// put your bot token here or use the input setting in the study to use a different bot. 
-		/* token = SCString("bot") + "your_bot_token"; */
+		/* token = SCString("bot") + your_bot_token; */
 
 	}
 
 	// Wrap the entire study function in a 1-5 second timer	in order to not poll the file too often
+	// 2024-02-24 DEPRECATED BECAUSE SC ADDED A SETTING TO CONTROL THE UPDATE INTERVAL OF STUDIES THAT USE sc.UPDATEALWAYS = 1 
+	// Chart Settings > Performance > Minimum Chart Update Interval in Milliseconds For ACSIL UpdateAlways
 	
-	// Get the current date time
+	// Get the current date time (used for formatting file name object 
 	SCDateTime CurrentDateTime; 
 	CurrentDateTime = sc.CurrentSystemDateTime; 
-
-	// The following code adds support for chart replay. 
-	// IF the user is doing a chart replay, get the time of the replaying
-	// chart, instead of the current time. 
-	// It may not be strictly necessary for all use cases.
-	int ReplayRunning = sc.GetReplayStatusFromChart(sc.ChartNumber);
-
-	if (ReplayRunning >= 1)
-    {
-		CurrentDateTime = sc.CurrentDateTimeForReplay;
-	}
-	else
-	{
-    	CurrentDateTime = sc.CurrentSystemDateTime; 
-	} 
-
-	// declare necessary persistent variables 
-	std::int64_t& LastUpdated = sc.GetPersistentInt64(1); 
-	std::int64_t& TimeInSeconds = sc.GetPersistentInt64(2);
-
-	// TIMER: Interval is set to the length of our timer in seconds
-    int Interval = 2;
-
-    // Get the time in seconds and store it to persistent memory
-    TimeInSeconds = CurrentDateTime.GetTimeInSeconds();
-	
-	// This is because when replaying a chart, LastUpdated is still at the
-	// current time and needs to be reset to the time of the replaying chart. 
-	if(LastUpdated > TimeInSeconds)
-	{
-		LastUpdated = TimeInSeconds;
-	}
-	
-    // Have X seconds elapsed since last updated?
-    if (LastUpdated + Interval > TimeInSeconds) 
-	{
-        // X seconds have NOT elapsed, bomb out
-        return;
-    }
-	
-	// When the Timer has passed
-	// LastUpdated gets updated to the current time, it resets the timer.
-	LastUpdated = TimeInSeconds;
-
-	// CONTINUE WITH THE STUDY
 
 	// get the chat id from SC Input. 
 	std::string ChatID = Input_ChatID.GetString();
@@ -424,13 +373,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// Get the directory of sierra data folder from a function directly into std::string
 	std::string DataFolderPath = sc.DataFilesFolder().GetChars();
 
-	// print out path debug
-	/* msg.Format("1: Data Folder Path: %s", DataFolderPath.c_str()); */
-	/* sc.AddMessageToLog(msg,1); */
-
-	/* std::string Image_Path = Input_ImageFolderPath.GetString(); */
-	/* msg.Format("1: Image Folder Path: %s", Image_Path.c_str()); */
-	/* sc.AddMessageToLog(msg,1); */
+	// variable used to format image file naming 
+	std::string source_imagetext;
 
 	// NOTE: 
 	// in several programming languages the backslash character ("\") is used
@@ -446,19 +390,11 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	std::size_t end_pos = DataFolderPath.find('\\', start_pos); 																
 	if(start_pos != std::string::npos)
 	{
-		//debug
-		/* sc.AddMessageToLog("SierraChart was found in the provided String", 1); */
-
 		// Create a string from the existing string that omits the "Data" characters
 		// and adds the "Logs" characters to the end of it. 
 		 
 		// re assign our directory string to the new value
 		DataFolderPath = DataFolderPath.substr(0, end_pos + 1) + "Logs";
-
-		// print out the new directory
-		/* msg.Format("Logs Directory Path: %s",DataFolderPath.c_str()); */
-		/* sc.AddMessageToLog(msg,1); */
-
 	}
 	else 
 	{	
@@ -466,9 +402,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		// SierraChart in it.  The user moved it to some other directory. This
 		// means the log file path needs to be specified through the study input.
 		//
-		/* sc.AddMessageToLog("SierraChart not found in path, */ 
-		/* " logs directory should be specified manually", 1); */
-
 		// Catch if they turned it on but did not specify the path.  
 		if(strlen(Input_CustomFolderPath.GetString()) == 0)
 		{
@@ -498,12 +431,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		}
 	}
 
-	// debug
-	/* msg.Format("Study assumes Log Folder Path is: %s", DataFolderPath.c_str()); */
-	/* sc.AddMessageToLog(msg,1); */
-	/* sc.AddMessageToLog("If this is not the path of your Alert Logs directory there will be a problem", 1); */
-	
-	
 	// Variable to save the file write time in seconds to be compared against
 	// the file write time in seconds in memory 
 	int64_t Local_LastModTime = 0;
@@ -664,9 +591,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 			// SAVE THE last write time of our file TO MEMORY
 			LastModTime = currentModTimePoint;
 
-			// debug this should only print the very first time opening SC and a chart drawing alert is triggered 
-			/* sc.AddMessageToLog("we get here: Num files in memory not equal to number of files",1); */ 
-
 			// First read how many lines are in the file
 			// open the file for reading
 			std::ifstream file(LogFile);
@@ -691,6 +615,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// Source string
 						std::size_t source_start_pos = line.find("Source");
 						std::size_t source_end_pos = line.find('|', source_start_pos);
+
+						// save the source chart text for our image file text 
+						source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
 
 						// Alert text string (different for Chart Alerts)
 						std::size_t text_start_pos = line.find("Formula");
@@ -769,15 +696,14 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 							 std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 
-							// debug 
-							/* msg.Format("Debug Study Name Substring: %s Source Substring: %s", */
-							/* std::string(study_name).c_str(), std::string(source_string).c_str()); */
-							/* sc.AddMessageToLog(msg,1); */
-
-							// Determine if source string and study name string are identical. This will tell us if the alert was from
-							// a Chart Alert or a Study Alert.
+							// Determine if source string and study name string
+							// are identical. This will tell us if the alert
+							// was from a Chart Alert or a Study Alert.
 							//
-							// Only check if it's a Chart or Study Alert if our previous substring got initialized (aka normal behaviour)
+							// Only check if it's a Chart or Study Alert if our
+							// previous substring got initialized (aka normal
+							// behaviour)
+							//
 							std::size_t find_substring_match = 0;
 							if(study_name_start_pos != 0) 
 							{
@@ -822,10 +748,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								}
 							}
 
-							// debug Alert text string with formatting
-							/* msg.Format("New Text String: %s", std::string(text_string).c_str()); */
-							/* sc.AddMessageToLog(msg,1); */
-							
 							// set the date_time substring	
 							std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 							bar_datetime_end_pos - bar_datetime_start_pos);
@@ -901,7 +823,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// Formatting for Study Alert 
 									if(CustomizeMessageSettingIndex == 0) // default
 									{
-										boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") 
+										/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") */ 
+										boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%\n%5%") 
 										%study_name %text_string %source_string %bar_datetime_string %chartbook_string ;
 
 										// overwrite our line string with the formatted string
@@ -909,7 +832,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									}
 									else if(CustomizeMessageSettingIndex == 1) // only remove formula
 									{
-										boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") 
+										/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") */ 
+										boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") 
 										%study_name %source_string %bar_datetime_string %chartbook_string ;
 
 										// overwrite our line string with the formatted string
@@ -917,7 +841,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									}
 									else if(CustomizeMessageSettingIndex == 2) // only include Study Name
 									{
-										boost::format fmt = boost::format("<strong>%1%</strong>") 
+										/* boost::format fmt = boost::format("<strong>%1%</strong>") */ 
+										boost::format fmt = boost::format("%1%") 
 										%study_name ;
 
 										// overwrite our line string with the formatted string
@@ -926,7 +851,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								}
 							}
-
 							// debug the text string we formatted 
 							/* msg.Format("telegram text: %s", line.c_str()); */
 							/* sc.AddMessageToLog(msg,1); */
@@ -937,11 +861,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 						// Get the name of the chartbook where this study is applied 
 						SCString current_chartbook = sc.ChartbookName();
-
-						// debug the chartbook names 
-						/* msg.Format("current chartbook: %s alert chartbook: %s", current_chartbook.GetChars(), */ 
-						/* sc_alert_chartbook.GetChars() ); */
-						/* sc.AddMessageToLog(msg,1); */
 
 						// the alert came from the same chartbook as where this study exists
 						if(sc_alert_chartbook == current_chartbook)
@@ -970,12 +889,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// add this chart number to the vector 
 										chart_numbers.push_back(ChartNumber);
 									}
-
-									// debug 
-									/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-									/* "Study ID returned for each chart in chartbook: %d", */ 
-									/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-									/* sc.AddMessageToLog(msg, 1); */
 								}	
 
 								// iterate through the existing number of charts with chart numbers as values  
@@ -1051,9 +964,18 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								// Set our Telegram URL for the POST request 
 								SCString URL = std::move(host) + std::move(token) + std::move(method);
 
+								// get the year month and day from SCDateTimeVariable
+								int Year, Month, Day, Hour, Minute, Second;
+								CurrentDateTime.GetDateTimeYMDHMS(Year,Month,Day,Hour, Minute,Second);
+
+								// Format the text for the image file name 
+								// The source string combined with the current date time 
+								msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+								Hour, Minute, Second);
+
 								// Create the file path to our image file 
 								std::string FilePath = Input_ImageFolderPath.GetString()
-								+ std::string("\\chart_image.png");
+								+ std::string(msg.GetChars());
 
 								// HANDLE if the folder does not exist before accessing the directory 
 								if (!std::filesystem::exists(Input_ImageFolderPath.GetString()) && 
@@ -1063,29 +985,10 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									"There may be an error with the request ",1);
 								}
 
-								// If previous screenshot file exists delete it. This is to avoid conflict with any  
-								// existing files from previous alerts. 
-								//
-								// Sometimes if the file already exists it ends up sending the previous file instead 
-								// of the new one. 
-								//
-								// TODO: Look into potential race condition when multiple instances of the study 
-								// are being used in the same chartbook. Since the study function gets triggered 
-								// multiple times very fast, I think the very first function to get here will be
-								// the one to delete the file and the others will simply be ignored. 
-								
-								if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-								{
-									std::filesystem::remove(FilePath);
-
-									// debug 
-									/* sc.AddMessageToLog("Image File deleted successfully!",1); */
-								} 
-
 								// convert string into SC String to pass into SC screenshot function 
 								SCString SC_FilePathName = FilePath.c_str();
 
-								// Take a screen shot and put it in our logs folder directory for safety 
+								// Take a screen shot 
 								sc.SaveChartImageToFileExtended(sc_alert_chart_num, SC_FilePathName, 0,0,0);
 
 								// Call the HTTP POST Request in a separate thread. (not recommended for large scale operations)
@@ -1099,10 +1002,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						else
 						{
 							// the alert came from a different chartboook
-							//
 							// Simply do nothing and let the study function finish 
 							
-							// Debug 
 							/* sc.AddMessageToLog("Alert was generated from a different chartbook. " */
 							/* "That chartbook will handle the alert.",1); */
 						}
@@ -1114,6 +1015,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// find various text inside the string
 						std::size_t source_start_pos = line.find("Source");
 						std::size_t source_end_pos = line.find('|', source_start_pos);
+
+						// save the source chart text for our image file text 
+						source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
 
 						std::size_t text_start_pos = line.find("Chart Drawing");
 						std::size_t text_end_pos = line.find('|', text_start_pos);
@@ -1153,10 +1057,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// SAVE the alert log chartbook name independantly 
 						std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
-						// debug chartbook name 
-						/* msg.Format("Chartbook Name: %s",std::string(alert_chartbook).c_str()); */
-						/* sc.AddMessageToLog(msg,1); */
-
 						// Save the chart number independantly 
 						// search backward from source_end_pos until the first # character 
 						std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
@@ -1175,10 +1075,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 							std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 							std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
 
-							// debug Alert text string with formatting
-							/* msg.Format("New Text String: %s", std::string(text_string).c_str()); */
-							/* sc.AddMessageToLog(msg,1); */
-
 							std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 							bar_datetime_end_pos - bar_datetime_start_pos);
 							std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
@@ -1189,10 +1085,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 							// overwrite our line string with the formatted string
 							line = fmt.str();
-
-							// debug the text string we formatted 
-							/* msg.Format("telegram text: %s", line.c_str()); */
-							/* sc.AddMessageToLog(msg,1); */
 						}
 
 						// Cast/Convert chartbook name stringview into SCString (1 allocation)
@@ -1200,11 +1092,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 						// Get the current chartbook name 
 						SCString current_chartbook = sc.ChartbookName();
-
-						// debug the chartbook names 
-						/* msg.Format("current chartbook: %s alert chartbook: %s", current_chartbook.GetChars(), */ 
-						/* sc_alert_chartbook.GetChars() ); */
-						/* sc.AddMessageToLog(msg,1); */
 
 						// the alert came from the same chartbook as where this study exists
 						if(sc_alert_chartbook == current_chartbook)
@@ -1233,12 +1120,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// add this chart number to the vector 
 										chart_numbers.push_back(ChartNumber);
 									}
-
-									// debug 
-									/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-									/* "Study ID returned for each chart in chartbook: %d", */ 
-									/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-									/* sc.AddMessageToLog(msg, 1); */
 								}	
 
 								// iterate through the existing number of charts with chart numbers as values  
@@ -1285,9 +1166,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Convert Json into SCString in one line. 
 								SCString query = object.dump().c_str(); 						
-								
-								/* msg.Format("Query debug: %s", query.GetChars() ); */
-								/* sc.AddMessageToLog(msg,1); */
 
 								// Set our headers 
 								n_ACSIL::s_HTTPHeader headers[1];
@@ -1312,9 +1190,18 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								// set the method variable which is passed into the URL string
 								method = "/sendPhoto?";
 
+								// get the year month and day from SCDateTimeVariable
+								int Year, Month, Day, Hour, Minute, Second;
+								CurrentDateTime.GetDateTimeYMDHMS(Year,Month,Day,Hour, Minute,Second);
+
+								// Format the text for the image file name 
+								// The source string combined with the current date time 
+								msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+								Hour, Minute, Second);
+
 								// Create the file path to our image file 
 								std::string FilePath = Input_ImageFolderPath.GetString()
-								+ std::string("\\chart_image.png");
+								+ std::string(msg.GetChars());
 
 								// NOTIFY if the folder does not exist before accessing the directory 
 								if (!std::filesystem::exists(Input_ImageFolderPath.GetString()) && 
@@ -1323,26 +1210,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									sc.AddMessageToLog("Error: Specified Image Folder Does not Exist! "
 									"There may be an error with the request ",1);
 								}
-
-								// If previous screenshot file exists delete it. This is to avoid conflict with any  
-								// existing files from previous alerts. 
-								//
-								// Sometimes if the file already exists it ends up sending the previous file instead 
-								// of the new one. 
-								
-								if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-								{
-									std::filesystem::remove(FilePath);
-
-									// debug 
-									/* sc.AddMessageToLog("Image File deleted successfully!",1); */
-								} 
-								/* else */ 
-								/* { */
-								/* 	// debug */ 
-								/* 	sc.AddMessageToLog("Subsequent operation: Image File not found or not a regular file." */
-								/* 	,1); */
-								/* } */
 
 								// convert/move string into SC String to pass into SC function 
 								SCString SC_FilePathName = FilePath.c_str();
@@ -1366,7 +1233,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 							// the alert came from a different chartboook
 							// Simply do nothing 
 							//
-							// Debug 
 							/* sc.AddMessageToLog("Alert was generated from a different chartbook. " */
 							/* "That chartbook will handle the alert.",1); */
 						}
@@ -1388,28 +1254,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 			// Sierra Chart has just been opened. 
 			//
 			// The first time the study reads the directory no http requests are sent. 
-			//
-			// Very first thing to do is look for any previous image files and delete this file if it is found 
-			//
-			// Create the file path to our image file 
-			std::string FilePath = Input_ImageFolderPath.GetString()
-			+ std::string("\\chart_image.png");
 
-			// If the file exists delete it. This is to avoid conflict with the very first alert that gets triggered 
-			// Sometimes if the file already exists it ends up sending the previous file instead of the new one. 
-			if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-			{
-				std::filesystem::remove(FilePath);
-
-				// debug 
-				/* sc.AddMessageToLog("First Run: Image File deleted successfully!",1); */
-			} 
-			/* else */ 
-			/* { */
-			/* 	// debug */ 
-			/* 	sc.AddMessageToLog("First Run: Image File not found or not a regular file.",1); */
-			/* } */
-			
 			// SAVE THE last write time of our file TO MEMORY
 			LastModTime = currentModTimePoint;
 
@@ -1434,11 +1279,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 				// close the file 
 				file.close();
-				
-				// debug 
-				/* msg.Format("line counter: %d num lines: %d", CountLines, NumberOfLines ); */
-				/* sc.AddMessageToLog(msg, 1) ; */
-
 			}
 			else
 			{
@@ -1505,6 +1345,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									std::size_t source_start_pos = line.find("Source");
 									std::size_t source_end_pos = line.find('|', source_start_pos);
 
+									// save the source chart text for our image file text 
+									source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+
 									// Alert text string (different for Chart Alerts)
 									std::size_t text_start_pos = line.find("Formula");
 									std::size_t first_pipe_pos = line.find('|', text_start_pos);
@@ -1553,11 +1396,11 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// potentially have something here to take care of any special HTML text formatting
 									
 									// continue with the other substrings
-									std::size_t bar_datetime_start_pos = line.find("Bar start");
+									std::size_t bar_datetime_start_pos = line.find("Bar start:");
 									std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos) - 5; // removing the ms timestamp
 
 									// only need the start position since it reads until end of the string
-									std::size_t chartbook_start_pos = line.find("Chartbook");
+									std::size_t chartbook_start_pos = line.find("Chartbook:");
 									
 									// SAVE the alert log chartbook name independantly 
 									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
@@ -1631,10 +1474,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											}
 										}
 
-										// debug Alert text string with formatting
-										/* msg.Format("New Text String: %s", std::string(text_string).c_str()); */
-										/* sc.AddMessageToLog(msg,1); */
-										
 										// set the date_time substring	
 										std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 										bar_datetime_end_pos - bar_datetime_start_pos);
@@ -1710,7 +1549,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												// Formatting for Study Alert 
 												if(CustomizeMessageSettingIndex == 0) // default
 												{
-													boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") 
+													/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") */ 
+													boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%\n%5%") 
 													%study_name %text_string %source_string %bar_datetime_string %chartbook_string ;
 
 													// overwrite our line string with the formatted string
@@ -1718,7 +1558,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												}
 												else if(CustomizeMessageSettingIndex == 1) // only remove formula
 												{
-													boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") 
+													/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") */ 
+													boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") 
 													%study_name %source_string %bar_datetime_string %chartbook_string ;
 
 													// overwrite our line string with the formatted string
@@ -1726,7 +1567,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												}
 												else if(CustomizeMessageSettingIndex == 2) // only include Study Name
 												{
-													boost::format fmt = boost::format("<strong>%1%</strong>") 
+													/* boost::format fmt = boost::format("<strong>%1%</strong>") */ 
+													boost::format fmt = boost::format("%1%") 
 													%study_name ;
 
 													// overwrite our line string with the formatted string
@@ -1734,10 +1576,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												}
 											}
 										}
-
-										// debug the text string we formatted 
-										/* msg.Format("telegram text: %s", line.c_str()); */
-										/* sc.AddMessageToLog(msg,1); */
 									}
 
 									// Cast/Convert chartbook name stringview into SCString (1 allocation)
@@ -1745,11 +1583,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 									// Get the name of the chartbook where this study is applied 
 									SCString current_chartbook = sc.ChartbookName();
-
-									// debug the chartbook names 
-									/* msg.Format("current chartbook: %s alert chartbook: %s", current_chartbook.GetChars(), */ 
-									/* sc_alert_chartbook.GetChars() ); */
-									/* sc.AddMessageToLog(msg,1); */
 
 									// the alert came from the same chartbook as where this study exists
 									if(sc_alert_chartbook == current_chartbook)
@@ -1829,9 +1662,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 											// Convert nlohmann json into SCString in one line. 
 											SCString query = object.dump().c_str(); 						
-											
-											/* msg.Format("Query debug: %s", query.GetChars() ); */
-											/* sc.AddMessageToLog(msg,1); */
 
 											// Set our headers 
 											n_ACSIL::s_HTTPHeader headers[1];
@@ -1859,9 +1689,18 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Set our Telegram URL for the POST request 
 											SCString URL = std::move(host) + std::move(token) + std::move(method);
 
+											// get the year month and day from SCDateTimeVariable
+											int Year, Month, Day, Hour, Minute, Second;
+											CurrentDateTime.GetDateTimeYMDHMS(Year,Month,Day,Hour, Minute,Second);
+
+											// Format the text for the image file name 
+											// The source string combined with the current date time 
+											msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+											Hour, Minute, Second);
+
 											// Create the file path to our image file 
 											std::string FilePath = Input_ImageFolderPath.GetString()
-											+ std::string("\\chart_image.png");
+											+ std::string(msg.GetChars());
 
 											// HANDLE if the folder does not exist before accessing the directory 
 											if (!std::filesystem::exists(Input_ImageFolderPath.GetString()) && 
@@ -1870,20 +1709,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												sc.AddMessageToLog("Error: Specified Image Folder Does not Exist! "
 												"There may be an error with the request ",1);
 											}
-
-											// If previous screenshot file exists delete it. This is to avoid conflict with any  
-											// existing files from previous alerts. 
-											//
-											// Sometimes if the file already exists it ends up sending the previous file instead 
-											// of the new one. 
-											
-											if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-											{
-												std::filesystem::remove(FilePath);
-
-												// debug 
-												/* sc.AddMessageToLog("Image File deleted successfully!",1); */
-											} 
 
 											// convert string into SC String to pass into SC screenshot function 
 											SCString SC_FilePathName = FilePath.c_str();
@@ -1907,7 +1732,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// Important: 1 instance of this study will be necessary per chartbook 
 										// in order to handle taking screenshots of those charts in the other chartbooks 
 										
-										// Debug 
 										/* sc.AddMessageToLog("Alert was generated from a different chartbook. " */
 										/* "That chartbook will handle the alert.",1); */
 									}
@@ -1919,6 +1743,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// find various text inside the string
 									std::size_t source_start_pos = line.find("Source");
 									std::size_t source_end_pos = line.find('|', source_start_pos);
+
+									// save the source chart text for our image file text 
+									source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
 
 									// Alert text string
 									std::size_t text_start_pos = line.find("Chart Drawing");
@@ -1959,10 +1786,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// SAVE the alert log chartbook name independantly 
 									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
-									// debug chartbook name 
-									/* msg.Format("Chartbook Name: %s",std::string(alert_chartbook).c_str()); */
-									/* sc.AddMessageToLog(msg,1); */
-
 									// Save the chartbook number independantly 
 									// search backward from source_end_pos until the first # character 
 									std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
@@ -1974,10 +1797,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// Alert chart number must persist past the string formatting we are about to do 
 									std::string alert_chart_number = std::string(alert_cht_number);
 
-									// debug chart number 
-									/* msg.Format("First Alert Chart Number: %s",std::string(alert_cht_number).c_str()); */
-									/* sc.AddMessageToLog(msg,1); */
-
 									if(source_start_pos != std::string::npos) // safety check
 									{
 										// make reference to different sequences of characters from the underlying string
@@ -1985,10 +1804,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 										std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
 
-										// debug Alert text string with formatting
-										/* msg.Format("New Text String: %s", std::string(text_string).c_str()); */
-										/* sc.AddMessageToLog(msg,1); */
-										
 										std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
 										bar_datetime_end_pos - bar_datetime_start_pos);
 										std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
@@ -2010,11 +1825,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 									// Get the name of the chartbook where this study is applied 
 									SCString current_chartbook = sc.ChartbookName();
-
-									// debug the chartbook names 
-									/* msg.Format("current chartbook: %s alert chartbook: %s", current_chartbook.GetChars(), */ 
-									/* sc_alert_chartbook.GetChars() ); */
-									/* sc.AddMessageToLog(msg,1); */
 
 									// the alert came from the same chartbook as where this study exists
 									if(sc_alert_chartbook == current_chartbook)
@@ -2043,12 +1853,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 													// add this chart number to the vector 
 													chart_numbers.push_back(ChartNumber);
 												}
-
-												// debug 
-												/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-												/* "Study ID returned for each chart in chartbook: %d", */ 
-												/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-												/* sc.AddMessageToLog(msg, 1); */
 											}	
 
 											// iterate through the existing number of charts with chart numbers as values  
@@ -2094,9 +1898,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Convert nlohmann json into SCString in one line. 
 											SCString query = object.dump().c_str(); 						
 											
-											/* msg.Format("Query debug: %s", query.GetChars() ); */
-											/* sc.AddMessageToLog(msg,1); */
-
 											// Set our headers 
 											n_ACSIL::s_HTTPHeader headers[1];
 											headers[0].Name = "Content-Type";
@@ -2123,9 +1924,18 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Set our Telegram URL for the POST request 
 											SCString URL = std::move(host) + std::move(token) + std::move(method);
 
+											// get the year month and day from SCDateTimeVariable
+											int Year, Month, Day, Hour, Minute, Second;
+											CurrentDateTime.GetDateTimeYMDHMS(Year,Month,Day,Hour, Minute,Second);
+
+											// Format the text for the image file name 
+											// The source string combined with the current date time 
+											msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+											Hour, Minute, Second);
+
 											// Create the file path to our image file 
 											std::string FilePath = Input_ImageFolderPath.GetString()
-											+ std::string("\\chart_image.png");
+											+ std::string(msg.GetChars());
 
 											// HANDLE if the folder does not exist before accessing the directory 
 											if (!std::filesystem::exists(Input_ImageFolderPath.GetString()) && 
@@ -2134,20 +1944,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 												sc.AddMessageToLog("Error: Specified Image Folder Does not Exist! "
 												"There may be an error with the request ",1);
 											}
-
-											// If previous screenshot file exists delete it. This is to avoid conflict with any  
-											// existing files from previous alerts. 
-											//
-											// Sometimes if the file already exists it ends up sending the previous file instead 
-											// of the new one. 
-											
-											if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-											{
-												std::filesystem::remove(FilePath);
-
-												// debug 
-												/* sc.AddMessageToLog("Image File deleted successfully!",1); */
-											} 
 
 											// convert string into SC String to pass into SC screenshot function 
 											SCString SC_FilePathName = FilePath.c_str();
@@ -2171,7 +1967,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 										// Important: 1 instance of this study will be necessary per chartbook 
 										// in order to handle taking screenshots of those charts in the other chartbooks 
 										
-										// Debug 
 										/* sc.AddMessageToLog("Alert was generated from a different chartbook. " */
 										/* "That chartbook will handle the alert.",1); */
 									}
@@ -2211,3 +2006,4 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		num_files_memory = number_of_files;
 	}
 }
+
