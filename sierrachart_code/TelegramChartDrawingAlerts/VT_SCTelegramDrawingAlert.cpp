@@ -1,4 +1,4 @@
-#include "sierrachart.h"  
+#include "sierrachart.h"
 
 #include <boost/format.hpp>
 #include <curl/curl.h>
@@ -8,7 +8,7 @@
 #include <thread>
 #include "json.hpp" // convenience 
 
-// const int StudyVersion = 134 // Last Updated on 2024 02 24
+// const int StudyVersion = 134 // Last Updated on 2024 02 26
 SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -347,11 +347,11 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	else
 	{
 		// User wants to use the default bot. On the github code there is no default bot so the study will just bomb out.
-		sc.AddMessageToLog("If you see this message it means you compiled the study on your own. "
-		" It is necessary for you to use your own bot using the provided study input field.",1);
-		return; 
+		/* sc.AddMessageToLog("If you see this message it means you compiled the study on your own. " */
+		/* " It is necessary for you to use your own bot using the provided study input field.",1); */
+		/* return; */ 
 
-		/* token = SCString("bot") + your_bot_token; */
+		token = SCString("bot") + "6614051803:AAGHcuqCVo2TGzBCGXax3h6ESkIQo0M639M";
 
 	}
 
@@ -970,7 +970,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Format the text for the image file name 
 								// The source string combined with the current date time 
-								msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
 								Hour, Minute, Second);
 
 								// Create the file path to our image file 
@@ -1196,7 +1196,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Format the text for the image file name 
 								// The source string combined with the current date time 
-								msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
 								Hour, Minute, Second);
 
 								// Create the file path to our image file 
@@ -1695,7 +1695,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 											// Format the text for the image file name 
 											// The source string combined with the current date time 
-											msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
 											Hour, Minute, Second);
 
 											// Create the file path to our image file 
@@ -1930,7 +1930,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 											// Format the text for the image file name 
 											// The source string combined with the current date time 
-											msg.Format("\\%s %d-%d-%d_%d:%d:%d.PNG", source_imagetext.c_str(), Year, Month, Day, 
+											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
 											Hour, Minute, Second);
 
 											// Create the file path to our image file 
