@@ -16,6 +16,23 @@ SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 // This function performs a curl synchronous request to the inputted URL
 void send_photo(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
 {
+	// Pause thread to allow the screenshot file to be properly saved. 
+	// Some image files take longer to be saved if it is a higher resolution.
+	//
+	// Wait for the file to be saved 
+	constexpr std::chrono::milliseconds waitDuration(600);
+	const auto endTime = std::chrono::steady_clock::now() + std::chrono::minutes(1);  // Adjust the maximum wait time as needed
+
+	while (std::chrono::steady_clock::now() < endTime)
+	{
+		if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
+		{
+			break;
+		}
+
+		std::this_thread::sleep_for(waitDuration);
+	}
+
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	CURL* curl = curl_easy_init();
 
@@ -347,11 +364,11 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	else
 	{
 		// User wants to use the default bot. On the github code there is no default bot so the study will just bomb out.
-		/* sc.AddMessageToLog("If you see this message it means you compiled the study on your own. " */
-		/* " It is necessary for you to use your own bot using the provided study input field.",1); */
-		/* return; */ 
+		sc.AddMessageToLog("If you see this message it means you compiled the study on your own. "
+		" It is necessary for you to use your own bot using the provided study input field.",1);
+		return; 
 
-		token = SCString("bot") + "6614051803:AAGHcuqCVo2TGzBCGXax3h6ESkIQo0M639M";
+		/* token = SCString("bot") + your_bot_token; */
 
 	}
 
