@@ -16,23 +16,6 @@ SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 // This function performs a curl synchronous request to the inputted URL
 void send_photo(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
 {
-	// Pause thread to allow the screenshot file to be properly saved. 
-	// Some image files take longer to be saved if it is a higher resolution.
-	//
-	// Wait for the file to be saved 
-	constexpr std::chrono::milliseconds waitDuration(600);
-	const auto endTime = std::chrono::steady_clock::now() + std::chrono::minutes(1);  // Adjust the maximum wait time as needed
-
-	while (std::chrono::steady_clock::now() < endTime)
-	{
-		if (std::filesystem::exists(FilePath) && std::filesystem::is_regular_file(FilePath))
-		{
-			break;
-		}
-
-		std::this_thread::sleep_for(waitDuration);
-	}
-
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	CURL* curl = curl_easy_init();
 
