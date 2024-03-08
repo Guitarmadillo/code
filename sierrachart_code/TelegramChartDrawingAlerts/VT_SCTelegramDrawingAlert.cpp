@@ -8,7 +8,7 @@
 #include <thread>
 #include "json.hpp" // convenience 
 
-// const int StudyVersion = 134 // Last Updated on 2024 02 26
+// const int StudyVersion = 135 // Last Updated on 2024 03 08 
 SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -290,9 +290,10 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		}	
 
 		return;
-		// End Study Defaults 
+		
 	}
-
+	// End Study Defaults 
+	
 	if(sc.IsUserAllowedForSCDLLName == false)
 	{
 		if(sc.Index == 0)
@@ -351,7 +352,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		" It is necessary for you to use your own bot using the provided study input field.",1);
 		return; 
 
-		/* token = SCString("bot") + your_bot_token; */
+		token = SCString("bot") + "your_token_here";
 
 	}
 
@@ -376,12 +377,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// variable used to format image file naming 
 	std::string source_imagetext;
 
-	// NOTE: 
-	// in several programming languages the backslash character ("\") is used
-	// as an escape character in string literals. This means that if you want
-	// to use a backslash as part of a string, you need to escape it by typing
-	// it twice ("\").
-	
 	// Get the Starting position of 'SierraChart' text from Data Folder Path 
 	std::size_t start_pos = DataFolderPath.find("SierraChart");
 
@@ -678,22 +673,24 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// SAVE the alert log chartbook name independantly 
 						std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
+						// 2024-03-07 The following adds full support for this
+						// setting to be both enabled or disabled. Global Settings >> Charts 
+						// >> Show Chart Number first on Chart Name
+						
 						// Save the chartbook number independantly 
-						// search backward from source_end_pos until the first # character 
-						std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
+						std::size_t find_chtbooknum = line.find("ChartNumber: ");
+						std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
 						std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
 
-						// save only the chart number itself  
-						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos + 1, cht_number_end_pos  - cht_number_start_pos);
+						// get the chart number where the alert originated from 
+						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+						cht_number_end_pos  - cht_number_start_pos);
 
 						// Alert chart number must persist past the string formatting we are about to do 
 						std::string alert_chart_number = std::string(alert_cht_number);
 
 						if(source_start_pos != std::string::npos) // safety check
 						{
-							// using std::string_view to make reference to different sequences of characters from the 
-							// underlying string without copying any of the data (lightweight) 
-
 							 std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
 
 							// Determine if source string and study name string
@@ -851,9 +848,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								}
 							}
-							// debug the text string we formatted 
-							/* msg.Format("telegram text: %s", line.c_str()); */
-							/* sc.AddMessageToLog(msg,1); */
 						}
 
 						// Cast/Convert chartbook name stringview into SCString (1 allocation)
@@ -1057,13 +1051,13 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 						// SAVE the alert log chartbook name independantly 
 						std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
-						// Save the chart number independantly 
-						// search backward from source_end_pos until the first # character 
-						std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
+						// Get the chart number where the alert originated from
+						std::size_t find_chtbooknum = line.find("ChartNumber: ");
+						std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
 						std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
 
-						// save only the chart number itself  
-						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos + 1, cht_number_end_pos  - cht_number_start_pos);
+						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+						cht_number_end_pos  - cht_number_start_pos);
 
 						// Alert chart number must persist past the string formatting we are about to do 
 						std::string alert_chart_number = std::string(alert_cht_number);
@@ -1405,13 +1399,14 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// SAVE the alert log chartbook name independantly 
 									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
-									// Save the chartbook number independantly 
-									// search backward from source_end_pos until the first # character 
-									std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
+									// Get the chart number where the alert originated from
+									std::size_t find_chtbooknum = line.find("ChartNumber: ");
+									std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
 									std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
 
 									// save only the chart number itself  
-									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos + 1, cht_number_end_pos  - cht_number_start_pos);
+									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+									cht_number_end_pos  - cht_number_start_pos);
 
 									// Alert chart number must persist past the string formatting we are about to do 
 									std::string alert_chart_number = std::string(alert_cht_number);
@@ -1424,11 +1419,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 										// Determine if source string and study name string are identical. This will tell us if the alert was from
 										// a Chart Alert or a Study Alert.
-
-										// debug 
-										/* msg.Format("Debug Study Name Substring: %s Source Substring: %s", */
-										/* std::string(study_name).c_str(), std::string(source_string).c_str()); */
-										/* sc.AddMessageToLog(msg,1); */
 
 										// Only check if it's a Chart or Study Alert if our previous substring got initialized (aka normal behaviour)
 										std::size_t find_substring_match = 0;
@@ -1611,12 +1601,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 													// add this chart number to the vector 
 													chart_numbers.push_back(ChartNumber);
 												}
-
-												// debug 
-												/* msg.Format("Highest chart Num: %d Chart Number: %d Study Chart Number: %d " */
-												/* "Study ID returned for each chart in chartbook: %d", */ 
-												/* highest_chart_num, ChartNumber, this_chart_num, is_study_found); */
-												/* sc.AddMessageToLog(msg, 1); */
 											}	
 
 											// iterate through the existing number of charts with chart numbers as values  
@@ -1786,13 +1770,13 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// SAVE the alert log chartbook name independantly 
 									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
 
-									// Save the chartbook number independantly 
-									// search backward from source_end_pos until the first # character 
-									std::size_t cht_number_start_pos = line.rfind('#', source_end_pos);
+									// Get the chart number where the alert originated from
+									std::size_t find_chtbooknum = line.find("ChartNumber: ");
+									std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
 									std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
 
-									// save only the chart number itself  
-									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos + 1, cht_number_end_pos  - cht_number_start_pos);
+									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+									cht_number_end_pos  - cht_number_start_pos);
 
 									// Alert chart number must persist past the string formatting we are about to do 
 									std::string alert_chart_number = std::string(alert_cht_number);
@@ -1814,10 +1798,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 										// overwrite our line string with the formatted string
 										line = fmt.str();
-
-										// debug the text string we formatted 
-										/* msg.Format("telegram text: %s", line.c_str()); */
-										/* sc.AddMessageToLog(msg,1); */
 									}
 
 									// Cast/Convert chartbook name stringview into SCString (1 allocation)
