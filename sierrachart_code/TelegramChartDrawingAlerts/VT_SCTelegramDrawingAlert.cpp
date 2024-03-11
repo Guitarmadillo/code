@@ -1,5 +1,3 @@
-#include "sierrachart.h"
-
 #include <boost/format.hpp>
 #include <curl/curl.h>
 #include <filesystem>
@@ -8,13 +6,533 @@
 #include <thread>
 #include "json.hpp" // convenience 
 
-// const int StudyVersion = 135 // Last Updated on 2024 03 08 
+#include "sierrachart.h"
+
+// const int StudyVersion = 135 
+// Last Updated Sun Mar 10 23:16:58 CST 2024
 SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void GetLogsFolderPath(SCStudyInterfaceRef sc, std::string& LogsFolderPath)
+{
+	// Get the directory of sierra data folder from a function directly into std::string
+	LogsFolderPath = sc.DataFilesFolder().GetChars();
+
+	// Get the Starting position of 'SierraChart' text from Data Folder Path 
+	std::size_t start_pos = LogsFolderPath.find("SierraChart");
+
+	// find the first backslash after SierraChart (adds support for
+	// Sierrachart2,3,4, or any text succeeding it)
+	std::size_t end_pos = LogsFolderPath.find('\\', start_pos); 																
+	if(start_pos != std::string::npos)
+	{
+		// Create a string from the existing string that omits the "Data" characters
+		// and adds the "Logs" characters to the end of it. 
+		 
+		// re assign our directory string to the new value
+		LogsFolderPath = LogsFolderPath.substr(0, end_pos + 1) + "Logs";
+	}
+	else 
+	{	
+		// If we get here it means the Data Files Folder path does not have
+		// SierraChart in it.  The user moved it to some other directory. 
+		// This means the log file path needs to be specified through the study
+		// input.
+		//
+		sc.AddMessageToLog("Error: text 'SierraChart' not found in Data Folder Path."
+		" Please enable Study input #6 and specify the full path to Sierra Chart Install directory in Study Input #7.",1);
+
+		LogsFolderPath = "Invalid_Path";
+	}
+}
+void FindMostRecentFile(SCStudyInterfaceRef sc, const std::string& LogsFolderPath, int& number_of_files, 
+	int64_t& Local_LastModTime, std::string& most_recent_filename)
+{
+	// HANDLE if the folder does not exist before accessing the directory 
+	if (!std::filesystem::exists(LogsFolderPath) && !std::filesystem::is_directory(LogsFolderPath)) 
+	{
+		sc.AddMessageToLog("Error: Logs Folder does not exist! Check if the folder exists in SC install directory."
+		" Enable Save Alerts Log to File under General Settings > Log. Then trigger a chart drawing alert and "
+		"the directory should be created.",1);
+		return;
+	}
+
+	// 1. Iterate through the directory to find the number of files that match
+	// 2. Find the file with the most recent modification time
+	for (const auto& entry : std::filesystem::directory_iterator(LogsFolderPath)) 
+	{
+		if (entry.is_regular_file()) 
+		{
+			// save the file name
+			std::string filename = entry.path().filename().string();
+
+			// Make sure the file is an Alert Log and the last 3 characters are 'log'
+			// to ensure it's not a swap file or some other extension
+			if(filename.find("Alert Log") != std::string::npos && 
+			filename.substr(filename.length() - 3) == "log")
+			{
+				// count the number of files in directory
+				number_of_files++; 
+
+				// get the last write time of our file	
+				std::filesystem::file_time_type CurrentModTime = std::filesystem::last_write_time(entry);
+
+				// convert it to a time in seconds from epoch
+				auto CurrentModTimePoint = std::chrono::duration_cast<std::chrono::seconds>
+				(CurrentModTime.time_since_epoch()).count();
+
+				//	if this is the first time the study function is run 
+				//	save it to check on the next iteration (HANDLES only 1 file present)
+				if(Local_LastModTime == 0)
+				{
+					// save the last modified time
+					Local_LastModTime = CurrentModTimePoint;
+
+					// save the filename so we can potentially read it later
+					most_recent_filename = std::move(filename);
+				}
+				else 
+				{
+					// if there is only one FILE we will not get here!
+					// We should get here on the following iterations
+					
+					// Check if the file modified time is more recent than the last one
+					if(CurrentModTimePoint > Local_LastModTime)
+					{
+
+						// save the last modified time
+						Local_LastModTime = CurrentModTimePoint;
+
+						// save the filename
+						most_recent_filename = std::move(filename);
+
+						// debug
+						/* msg.Format("print filenames: %s", filename.c_str()); */ 
+						/* sc.AddMessageToLog(msg, 1); */
+					}
+				}
+			}
+		}
+	}
+
+
+
+}
+void FindDuplicateStudiesInSameChartbook(SCStudyInterfaceRef sc, const char* StudyName, SCString& msg)
+{
+	// Get the highest chart number in the current chartbook 
+	int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
+
+	// get the current chart number for reference
+	int this_chart_num = sc.ChartNumber;
+
+	// vector used to save the chart numbers of charts in current chartbook
+	std::vector <int> chart_numbers;
+
+	// Go through each chart number from 1 to highest chart number to 
+	// determine the chart numbers that exist and save those. 
+	for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
+	{
+		// returns true if chart number exists in current chartbook, empty string refers to current chartbook
+		if(sc.IsChartNumberExist(ChartNumber, ""))
+		{
+			// add this chart number to the vector 
+			chart_numbers.push_back(ChartNumber);
+		}
+	}	
+
+	// iterate through the existing number of charts with chart numbers as values  
+	for(int i = 0; i < chart_numbers.size(); i++)
+	{
+		// Check if the study with this name is found on this chart number
+		// arguments: (chart number, study name as a string, search for study short name instead)
+		int is_study_found = sc.GetStudyIDByName(chart_numbers[i], StudyName, 0);
+
+		// If the study is found and if the chart it was found on is not the current chart
+		if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
+		{
+			// This should only return true if the study exists on two or more chartbooks
+			// print which charts where the study is found
+			msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
+			"per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
+			sc.AddMessageToLog(msg,1);
+		}
+	}
+}
+
+void ParseChartStudyAlertText(std::string& line, std::string& SourceChartImageText, int& CustomizeMessageContent, 
+	SCString& sc_alert_chartbook, int& sc_alert_chart_num)
+{
+	// String parsing logic 
+	// find various text inside the string
+	std::size_t source_start_pos = line.find("Source");
+	std::size_t source_end_pos = line.find('|', source_start_pos);
+
+	// save the source chart text for our image file text 
+	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+
+	// Alert text string (different for Chart Alerts)
+	std::size_t text_start_pos = line.find("Formula");
+	std::size_t first_pipe_pos = line.find('|', text_start_pos);
+
+	// set the end pos to the second pipe character to capture the alert condition that was triggered.
+	// Necessary to set the starting position 1 in front or else it will just find the same one 
+	std::size_t text_end_pos = line.find('|', first_pipe_pos + 1);
+
+	// Determine specifically if it is a Chart or Study alert 
+	// This will be done further down by comparing the source string with study text string
+	
+	// This iterator gives us a starting point to retrieve the Study Name (short name). 
+	std::size_t is_studyalert_start_pos = line.rfind("Study:", text_start_pos);
+
+	std::size_t study_name_start_pos = 0;
+	std::size_t study_name_end_pos = 0;
+
+	// 2024-01-05 Due to an inconsistency found with studies that have Use As Main Price
+	// Graph enabled For now it is necessary to perform a check that will ensure the
+	// study name is retrieved safely. 
+	//
+	// This variable is used to inform the program of the inconsistency 
+	bool format_inconsistency = 0;
+
+	// if the iterator returns null it means that Display As Main Price Graph was enabled for the study.
+	// When that is enabled it changes the formatting of the Alert Log to not include the Study: Study Name
+	// it will be necessary to format the message differently further below
+	if(is_studyalert_start_pos == std::string::npos) 
+	{
+		// set the boolean to positive informing the study to use the separate formatting method 
+		format_inconsistency = 1;
+	}
+	else
+	{
+		// if we get here we can continue to initialize the other variables safely 
+		// set the starting point for the Study Name 7 characters infront of text: "Study: "
+		study_name_start_pos = is_studyalert_start_pos + 7;
+
+		// Set the end point of the substring
+		study_name_end_pos = line.find('|', study_name_start_pos) - 1;
+	}
+
+	// Create our substring (safely since if they are initialized and it should not use invalid iterators)
+	std::string_view study_name (line.c_str() + study_name_start_pos, study_name_end_pos - study_name_start_pos);
+
+	// potentially have something here to take care of any special HTML text formatting
+	
+	// continue with the other substrings
+	std::size_t bar_datetime_start_pos = line.find("Bar start:");
+	std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos) - 5; // removing the ms timestamp
+
+	// only need the start position since it reads until end of the string
+	std::size_t chartbook_start_pos = line.find("Chartbook:");
+	
+	// SAVE the alert log chartbook name independantly 
+	std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
+
+	// Get the chart number where the alert originated from
+	std::size_t find_chtbooknum = line.find("ChartNumber: ");
+	std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
+	std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
+
+	// save only the chart number itself  
+	std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+	cht_number_end_pos  - cht_number_start_pos);
+
+	// Alert chart number must persist past the string formatting we are about to do 
+	std::string alert_chart_number = std::string(alert_cht_number);
+
+	if(source_start_pos != std::string::npos) // safety check
+	{
+		// std::string_view Make reference to different sequences of characters from the underlying string
+		// without copying any of the data (lightweight) 
+		std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
+
+		// Determine if source string and study name string are identical. This will tell us if the alert was from
+		// a Chart Alert or a Study Alert.
+
+		// Only check if it's a Chart or Study Alert if our previous substring got initialized (aka normal behaviour)
+		std::size_t find_substring_match = 0;
+		if(study_name_start_pos != 0) 
+		{
+			// find the study_name contents inside of source_string. 
+			// If a full match is found (iterator set to a valid number), this was a Chart Alert.
+			find_substring_match = source_string.find(study_name);
+		}
+
+		bool is_chart_alert = 0;
+		// check if the find_substring_match iterator was initialized and it was not initialized to null
+		if(find_substring_match != 0 && find_substring_match != std::string::npos)
+		{
+			// debug 
+			/* sc.AddMessageToLog("The Study Name is found within Source String, this was a Chart Alert.",1); */
+
+			// informs the following code to format it as a chart alert instead 
+			is_chart_alert = 1;
+
+		}
+
+		// set the alert text substring (using std::string because this string 
+		// might need to be modified.
+		//
+		// With Chart/Study Alerts, this is where the formula is found. 
+		std::string text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
+
+		// find any < characters in the formula and replace them with html equivalent
+		// this is a fix for where the < character is being interpreted as an opening
+		// brace for html formatting. We want to display the literal character instead. 
+		std::size_t find_less_than = text_string.find('<');
+		if(find_less_than != std::string::npos)
+		{
+			// the < character is found 
+			//
+			// Replace all occurrences of '<' with '&lt;'
+			std::size_t pos = 0;
+			while ((pos = text_string.find('<', pos)) != std::string::npos) 
+			{
+				text_string.replace(pos, 1, "&lt;");
+				pos += 4; // Move past the replaced '&lt;'
+			}
+		}
+
+		// set the date_time substring	
+		std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
+		bar_datetime_end_pos - bar_datetime_start_pos);
+
+		// set the chartbook substring
+		std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
+
+		// Get the Input selection for Customize Message Text
+		int CustomizeMessageSettingIndex = CustomizeMessageContent;
+
+		// Format the string to pass in Telegram message
+		if(format_inconsistency == 1) // Will remove when SC fixes bug
+		{
+			// Different formatting to adjust for the lack of Study Name 
+			if(CustomizeMessageSettingIndex == 0) // default include formula
+			{
+				boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
+				%text_string %source_string %bar_datetime_string  %chartbook_string ;
+
+				// overwrite our line string with the formatted string
+				line = fmt.str();
+			}
+			else if(CustomizeMessageSettingIndex == 1) // only remove formula
+			{
+				boost::format fmt = boost::format("%1%\n%2%\n%3%") 
+				%source_string %bar_datetime_string %chartbook_string ;
+
+				// overwrite our line string with the formatted string
+				line = fmt.str();
+			}
+			else if(CustomizeMessageSettingIndex == 2) // same as no formula
+			{
+				boost::format fmt = boost::format("%1%\n%2%\n%3%") 
+				%source_string %bar_datetime_string %chartbook_string ;
+
+				// overwrite our line string with the formatted string
+				line = fmt.str();
+			}
+		}
+		else
+		{
+			if(is_chart_alert == 1)
+			{
+				// Formatting for Chart Alert 
+				if(CustomizeMessageSettingIndex == 0) // default include formula
+				{
+					boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
+					%text_string %source_string %bar_datetime_string  %chartbook_string ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+				else if(CustomizeMessageSettingIndex == 1) // only remove formula
+				{
+					boost::format fmt = boost::format("%1%\n%2%\n%3%") 
+					%source_string %bar_datetime_string %chartbook_string ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+				else if(CustomizeMessageSettingIndex == 2) // same as no formula
+				{
+					boost::format fmt = boost::format("%1%\n%2%\n%3%") 
+					%source_string %bar_datetime_string %chartbook_string ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+			}
+			else
+			{
+				// Formatting for Study Alert 
+				if(CustomizeMessageSettingIndex == 0) // default
+				{
+					/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") */ 
+					boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%\n%5%") 
+					%study_name %text_string %source_string %bar_datetime_string %chartbook_string ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+				else if(CustomizeMessageSettingIndex == 1) // only remove formula
+				{
+					/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") */ 
+					boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") 
+					%study_name %source_string %bar_datetime_string %chartbook_string ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+				else if(CustomizeMessageSettingIndex == 2) // only include Study Name
+				{
+					/* boost::format fmt = boost::format("<strong>%1%</strong>") */ 
+					boost::format fmt = boost::format("%1%") 
+					%study_name ;
+
+					// overwrite our line string with the formatted string
+					line = fmt.str();
+				}
+			}
+		}
+	}
+
+	// Convert Chartbook name as std::string_view into SCString (fancy 1 liner)
+	sc_alert_chartbook = std::string(alert_chartbook).c_str();
+
+	// Cast/Convert chart number stringview into int 
+	sc_alert_chart_num = std::stoi(std::string(alert_cht_number));
+}
+
+void ParseChartDrawingAlertText(std::string& line, std::string& SourceChartImageText, int& CustomizeMessageContent,
+	SCString& sc_alert_chartbook, int& sc_alert_chart_num)
+{
+	// String parsing for Chart Drawing Alerts
+	// find various text inside the string
+	std::size_t source_start_pos = line.find("Source");
+	std::size_t source_end_pos = line.find('|', source_start_pos);
+
+	// save the source chart text for our image file text 
+	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+
+	// Alert text string
+	std::size_t text_start_pos = line.find("Chart Drawing");
+	std::size_t text_end_pos = line.find('|', text_start_pos);
+	
+	// MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
+	// Get Iterators to the Price (there are two prices in the alert text)
+	
+	// We start from the end of the string and work our way back (safest way)
+	std::size_t price2_end_pos = line.rfind(')', text_end_pos);
+	std::size_t price2_start_pos = line.rfind('(', price2_end_pos);
+
+	// Insert text for price2 formatting 
+	line.insert(price2_end_pos, "</code>");
+	line.insert(price2_start_pos + 1, "<code>"); 
+
+	// reset the iterator for price2_start_pos in order to safely get price1 iterators
+	price2_start_pos = line.rfind('(', text_end_pos);
+
+	// Get the iterators for price1
+	std::size_t price1_end_pos = line.rfind(')', price2_start_pos);
+	std::size_t price1_start_pos = line.rfind('(', price1_end_pos);
+	
+	// Insert text for price1 formatting
+	line.insert(price1_end_pos, "</code>");
+	line.insert(price1_start_pos + 1, "<code>"); 
+
+	// once done inserting the text, RESET Alert Text End Position to the new correct iterator
+	text_end_pos = line.find('|', text_start_pos);
+
+	// continue with the other substrings
+	std::size_t bar_datetime_start_pos = line.find("Bar date-time");
+	std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos);
+
+	// only need the start position since it reads until end of the string
+	std::size_t chartbook_start_pos = line.find("Chartbook");
+	
+	// SAVE the alert log chartbook name independantly 
+	std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
+
+	// Get the chart number where the alert originated from
+	std::size_t find_chtbooknum = line.find("ChartNumber: ");
+	std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
+	std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
+
+	std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
+	cht_number_end_pos  - cht_number_start_pos);
+
+	// Alert chart number must persist past the string formatting we are about to do 
+	std::string alert_chart_number = std::string(alert_cht_number);
+
+	// Chart Drawing Alerts are simpler than Study Alerts and do not have a formatting option 
+	if(source_start_pos != std::string::npos) // safety check
+	{
+		// make reference to different sequences of characters from the underlying string
+		// without copying any of the data (lightweight) 
+		std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
+		std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
+
+		std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
+		bar_datetime_end_pos - bar_datetime_start_pos);
+		std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
+
+		// Format the string to pass in Telegram message
+		boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") %text_string 
+		%bar_datetime_string %chartbook_string %source_string ;
+
+		// overwrite our line string with the formatted string
+		line = fmt.str();
+	}
+
+	// Convert Chartbook name as std::string_view into SCString (fancy 1 liner)
+	sc_alert_chartbook = std::string(alert_chartbook).c_str();
+
+	// Cast/Convert chart number stringview into int 
+	sc_alert_chart_num = std::stoi(std::string(alert_cht_number));
+}
+
+void SCTelegramPostRequest(SCStudyInterfaceRef sc, const SCString& host, const SCString& token, const std::string& ChatID, const std::string& line, SCString& msg)
+{
+	SCString method = "/sendMessage?";
+
+	// Set our Telegram URL for the POST request 
+	SCString URL = std::move(host) + std::move(token) + std::move(method);
+
+	// SIERRA CHART POST REQUEST WITH JSON BODY EXAMPLE 
+	//
+	// Create the json object for Telegram
+	// For simplicity using nlohmann json
+	nlohmann::json object = {
+	{"chat_id", std::move(ChatID)},
+	{"text", std::move(line)},
+	{"parse_mode", "HTML"},	
+	}; 
+
+	// Convert nlohmann json into SCString in one line. 
+	SCString query = object.dump().c_str(); 						
+	
+	// Set our headers 
+	n_ACSIL::s_HTTPHeader headers[1];
+	headers[0].Name = "Content-Type";
+	headers[0].Value = "application/json";
+
+	if(sc.MakeHTTPPOSTRequest(URL, query, headers, 1) )
+	{
+		// successful request 
+		/* msg.Format("Response: %s", sc.HTTPResponse.GetChars()); */
+		/* sc.AddMessageToLog(msg,1); */
+	}
+	else
+	{
+		// problem with the request 
+		msg.Format("Error with the Request: %s", sc.HTTPResponse.GetChars());
+		sc.AddMessageToLog(msg,1);
+	}
+}
+
 /* std::string debug_request; */ 
 // This function performs a curl synchronous request to the inputted URL
-void send_photo(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
+void CURLTelegramPostRequest(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
 {
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	CURL* curl = curl_easy_init();
@@ -73,7 +591,6 @@ void send_photo(const SCString& URL, const std::string& ChatID, const std::strin
 		curl_easy_cleanup(curl);
 	}
 }
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 {
@@ -352,66 +869,31 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		" It is necessary for you to use your own bot using the provided study input field.",1);
 		return; 
 
-		token = SCString("bot") + "your_token_here";
+		/* token = SCString("bot") + "your_bot_token"; */
 
 	}
 
-	// Wrap the entire study function in a 1-5 second timer	in order to not poll the file too often
-	// 2024-02-24 DEPRECATED BECAUSE SC ADDED A SETTING TO CONTROL THE UPDATE INTERVAL OF STUDIES THAT USE sc.UPDATEALWAYS = 1 
-	// Chart Settings > Performance > Minimum Chart Update Interval in Milliseconds For ACSIL UpdateAlways
-	
-	// Get the current date time (used for formatting file name object 
-	SCDateTime CurrentDateTime; 
-	CurrentDateTime = sc.CurrentSystemDateTime; 
-
-	// get the chat id from SC Input. 
+	// get the Telegram Chat ID from SC Input. 
 	std::string ChatID = Input_ChatID.GetString();
 
 	// declare variables for the host and Telegram method being called
 	SCString host = "https://api.telegram.org/";
-	SCString method = "";
 
-	// Get the directory of sierra data folder from a function directly into std::string
-	std::string DataFolderPath = sc.DataFilesFolder().GetChars();
+	// two variables that will be changed later by the parsing function
+	SCString sc_alert_chartbook = "";
+	int sc_alert_chart_num = 0;
+
+	// Get the current date time (used for formatting file name object)
+	SCDateTime CurrentDateTime; 
+	CurrentDateTime = sc.CurrentSystemDateTime; 
 
 	// variable used to format image file naming 
-	std::string source_imagetext;
+	std::string SourceChartImageText = "";
 
-	// Get the Starting position of 'SierraChart' text from Data Folder Path 
-	std::size_t start_pos = DataFolderPath.find("SierraChart");
-
-	// find the first backslash after SierraChart (support for
-	// Sierrachart2,3,4, or any text succeeding it)
-	std::size_t end_pos = DataFolderPath.find('\\', start_pos); 																
-	if(start_pos != std::string::npos)
-	{
-		// Create a string from the existing string that omits the "Data" characters
-		// and adds the "Logs" characters to the end of it. 
-		 
-		// re assign our directory string to the new value
-		DataFolderPath = DataFolderPath.substr(0, end_pos + 1) + "Logs";
-	}
-	else 
-	{	
-		// If we get here it means the Data Files Folder path does not have
-		// SierraChart in it.  The user moved it to some other directory. This
-		// means the log file path needs to be specified through the study input.
-		//
-		// Catch if they turned it on but did not specify the path.  
-		if(strlen(Input_CustomFolderPath.GetString()) == 0)
-		{
-			sc.AddMessageToLog("Error: text 'SierraChart' not found in Data Folder Path"
-			" but no path to Logs Folder was provided",1);
-			return; 
-		}
-		else
-		{
-			// set the explicitly specified path 
-			DataFolderPath = Input_CustomFolderPath.GetString();
-		}
-	}
-
-	// Confirm if the user specified the path even if 'SierraChart' text was found in the Data Folder Path. 
+	// Variable for Logs Folder Path
+	std::string LogsFolderPath = ""; 
+	
+	// Confirm if the user specified the path in study input or not
 	if(Input_SpecifyPath.GetBoolean() == 1)
 	{
 		// Catch if they turned it on but did not specify the path.  
@@ -422,7 +904,16 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		else
 		{
 			// set the explicitly specified path 
-			DataFolderPath = Input_CustomFolderPath.GetString();
+			LogsFolderPath = Input_CustomFolderPath.GetString();
+		}
+	}
+	else
+	{
+		// Get the Folder Path using the SC Data Files Folder Path
+		GetLogsFolderPath(sc, LogsFolderPath);
+		if(LogsFolderPath == "Invalid_Path") // if it is invalid bomb out the study function
+		{
+			return; 
 		}
 	}
 
@@ -443,72 +934,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// And a new log file has been created. 
 	int& num_files_memory = sc.GetPersistentInt(10);
 
-	// HANDLE if the folder does not exist before accessing the directory 
-	if (!std::filesystem::exists(DataFolderPath) && !std::filesystem::is_directory(DataFolderPath)) 
-	{
-		sc.AddMessageToLog("Error: Logs Folder does not exist! Check if the folder exists in SC install directory."
-		" Enable Save Alerts Log to File under General Settings > Log. Then trigger a chart drawing alert and "
-		"the directory should be created.",1);
-		return;
-	}
-
-	// Iterate through the directory to find the number of files that match
-	// find the file with the most recent modification time
-	for (const auto& entry : std::filesystem::directory_iterator(DataFolderPath)) 
-	{
-		if (entry.is_regular_file()) 
-		{
-			// save the file name
-			std::string filename = entry.path().filename().string();
-
-			// Make sure the file is an Alert Log and the last 3 characters are 'log'
-			// to ensure it's not a swap file or some other extension
-			if(filename.find("Alert Log") != std::string::npos && 
-			filename.substr(filename.length() - 3) == "log")
-			{
-				// count the number of files in directory
-				number_of_files++; 
-
-				// get the last write time of our file	
-				std::filesystem::file_time_type CurrentModTime = std::filesystem::last_write_time(entry);
-
-				// convert it to a time in seconds from epoch
-				auto CurrentModTimePoint = std::chrono::duration_cast<std::chrono::seconds>
-				(CurrentModTime.time_since_epoch()).count();
-
-				//	if this is the first time the study function is run 
-				//	save it to check on the next iteration (HANDLES only 1 file present)
-				if(Local_LastModTime == 0)
-				{
-					// save the last modified time
-					Local_LastModTime = CurrentModTimePoint;
-
-					// save the filename so we can potentially read it later
-					most_recent_filename = std::move(filename);
-				}
-				else 
-				{
-					// if there is only one FILE we will not get here!
-					// We should get here on the following iterations
-					
-					// Check if the file modified time is more recent than the last one
-					if(CurrentModTimePoint > Local_LastModTime)
-					{
-
-						// save the last modified time
-						Local_LastModTime = CurrentModTimePoint;
-
-						// save the filename
-						most_recent_filename = std::move(filename);
-
-						// debug
-						/* msg.Format("print filenames: %s", filename.c_str()); */ 
-						/* sc.AddMessageToLog(msg, 1); */
-					}
-				}
-			}
-		}
-	}
+	// FIND THE MOST RECENT FILE 
+	FindMostRecentFile(sc, LogsFolderPath, number_of_files, Local_LastModTime, most_recent_filename);
 
 	// debug to check if we are getting the right file
 	/* msg.Format("There are %d total files | Most recent filename: %s" */
@@ -518,11 +945,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// Bomb out if there are no alert log files 
 	if(number_of_files == 0)
 	{
-		// debug 
 		/* sc.AddMessageToLog("there are no alert files found",1); */
-
-		// bomb out until an alert file is found
-		return;
+		return; // bomb out until an alert file is found
 	}
 
 	// ENSURE on the first call to the function that number of files is initialized to MEMORY
@@ -531,7 +955,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	{
 		// we should only get here if there are alert log files and number of files in
 		// memory has not been initialized yet. 
-		//
+	
 		// REMEMBER the number of alert log files.
 		num_files_memory = number_of_files;
 	}	
@@ -539,7 +963,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	// Construct the full path by combining the directory path and filename
 	// c++ filesystem variable which is explicitly set to the name of the file
 	// with the most recent write time in the specified directory. 
-    std::filesystem::path LogFile (DataFolderPath + "\\" + most_recent_filename);
+    std::filesystem::path LogFile (LogsFolderPath + "\\" + most_recent_filename);
 	if (std::filesystem::exists(LogFile)) 
 	{
 		// save the filename as a string 
@@ -606,354 +1030,38 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 					// Handles text formatting for Chart/Study Alerts
 					if(line.find("Type: Study") != std::string::npos)
 					{
-						// find various text inside the string
-						// Source string
-						std::size_t source_start_pos = line.find("Source");
-						std::size_t source_end_pos = line.find('|', source_start_pos);
+						// Get the user setting for customize message content
+						int CustomizeMessageContent = Input_CustomizeMessageContent.GetIndex();
 
-						// save the source chart text for our image file text 
-						source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
-
-						// Alert text string (different for Chart Alerts)
-						std::size_t text_start_pos = line.find("Formula");
-						std::size_t first_pipe_pos = line.find('|', text_start_pos);
-
-						// set the end pos to the second pipe character to capture the alert condition that was triggered.
-						// Necessary to set the starting position 1 in front or else it will just find the same one 
-						std::size_t text_end_pos = line.find('|', first_pipe_pos + 1);
-
-						// Determine specifically if it is a Chart or Study alert 
-						// This will be done further down by comparing the source string with study text string
-						
-						// This iterator gives us a starting point to retrieve the Study Name (short name). 
-						std::size_t is_studyalert_start_pos = line.rfind("Study:", text_start_pos);
-
-						std::size_t study_name_start_pos = 0;
-						std::size_t study_name_end_pos = 0;
-
-						// 2023-01-05 Due to an inconsistency found with studies that have Use As Main Price
-						// Graph enabled For now it is necessary to perform a check that will ensure the
-						// study name is retrieved safely 
-						
-						// this variable is used to inform the program of the inconsistency 
-						bool format_inconsistency = 0;
-
-						// if the iterator returns null it means that Display As Main Price Graph was enabled for the study.
-						// When that is enabled it changes the formatting of the Alert Log to not include the Study: Study Name
-						// it will be necessary to format the message differently further below
-						if(is_studyalert_start_pos == std::string::npos) 
-						{
-							// set the boolean to positive informing the study to use the separate formatting method 
-							format_inconsistency = 1;
-						}
-						else
-						{
-							// if we get here we can continue to initialize the other variables safely 
-							// set the starting point for the Study Name 7 characters infront of text: "Study: "
-							study_name_start_pos = is_studyalert_start_pos + 7;
-
-							// Set the end point of the substring
-							study_name_end_pos = line.find('|', study_name_start_pos) - 1;
-						}
-
-						// Create our substring (safely since if they are initialized and it should not use invalid iterators)
-						std::string_view study_name (line.c_str() + study_name_start_pos, study_name_end_pos - study_name_start_pos);
-
-						// potentially have something here to take care of special HTML text formatting
-						
-						// continue with the other substrings
-						std::size_t bar_datetime_start_pos = line.find("Bar start");
-
-						// the -5 is for removing the ms timestamp
-						std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos) - 5; 
-
-						// only need the start position since it reads until end of the string
-						std::size_t chartbook_start_pos = line.find("Chartbook");
-						
-						// SAVE the alert log chartbook name independantly 
-						std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
-
-						// 2024-03-07 The following adds full support for this
-						// setting to be both enabled or disabled. Global Settings >> Charts 
-						// >> Show Chart Number first on Chart Name
-						
-						// Save the chartbook number independantly 
-						std::size_t find_chtbooknum = line.find("ChartNumber: ");
-						std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
-						std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
-
-						// get the chart number where the alert originated from 
-						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
-						cht_number_end_pos  - cht_number_start_pos);
-
-						// Alert chart number must persist past the string formatting we are about to do 
-						std::string alert_chart_number = std::string(alert_cht_number);
-
-						if(source_start_pos != std::string::npos) // safety check
-						{
-							 std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
-
-							// Determine if source string and study name string
-							// are identical. This will tell us if the alert
-							// was from a Chart Alert or a Study Alert.
-							//
-							// Only check if it's a Chart or Study Alert if our
-							// previous substring got initialized (aka normal
-							// behaviour)
-							//
-							std::size_t find_substring_match = 0;
-							if(study_name_start_pos != 0) 
-							{
-								// find the study_name contents inside of source_string. 
-								// If a full match is found (iterator set to a valid number), this was a Chart Alert.
-								find_substring_match = source_string.find(study_name);
-							}
-
-							bool is_chart_alert = 0;
-
-							// check if the find_substring_match iterator was initialized and it was not initialized to null
-							if(find_substring_match != 0 && find_substring_match != std::string::npos)
-							{
-								// debug 
-								/* sc.AddMessageToLog("The Study Name is found within Source String, this was a Chart Alert.",1); */
-
-								// informs the following code to format it as a chart alert instead 
-								is_chart_alert = 1;
-
-							}
-
-							// set the alert text substring (using std::string because this string 
-							// might need to be modified.
-							// With Chart/Study Alerts, this is where the formula is found. 
-							std::string text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-
-							// BUG FIX WITH Telegram HTML FORMATTING 2024-01-04
-							// find any < characters in the formula and replace them with html equivalent
-							// this is a fix for where the < character is being interpreted as an opening
-							// brace for html formatting. We want to display the literal character instead. 
-							std::size_t find_less_than = text_string.find('<');
-							if(find_less_than != std::string::npos)
-							{
-								// the < character is found 
-								//
-								// Replace all occurrences of '<' with '&lt;'
-								std::size_t pos = 0;
-								while ((pos = text_string.find('<', pos)) != std::string::npos) 
-								{
-									text_string.replace(pos, 1, "&lt;");
-									pos += 4; // Move past the replaced '&lt;'
-								}
-							}
-
-							// set the date_time substring	
-							std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
-							bar_datetime_end_pos - bar_datetime_start_pos);
-
-							// set the chartbook substring
-							std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
-
-							// Get the Input selection for Customize Message Text
-							int CustomizeMessageSettingIndex = Input_CustomizeMessageContent.GetIndex();
-
-							// Format the string to pass in Telegram message
-							if(format_inconsistency == 1) // Will remove when SC fixes bug
-							{
-								// Different formatting to adjust for the lack of Study Name 
-								if(CustomizeMessageSettingIndex == 0) // default include formula
-								{
-									boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
-									%text_string %source_string %bar_datetime_string  %chartbook_string ;
-
-									// overwrite our line string with the formatted string
-									line = fmt.str();
-								}
-								else if(CustomizeMessageSettingIndex == 1) // only remove formula
-								{
-									boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-									%source_string %bar_datetime_string %chartbook_string ;
-
-									// overwrite our line string with the formatted string
-									line = fmt.str();
-								}
-								else if(CustomizeMessageSettingIndex == 2) // same as no formula
-								{
-									boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-									%source_string %bar_datetime_string %chartbook_string ;
-
-									// overwrite our line string with the formatted string
-									line = fmt.str();
-								}
-							}
-							else
-							{
-								if(is_chart_alert == 1)
-								{
-									// Formatting for Chart Alert 
-									if(CustomizeMessageSettingIndex == 0) // default include formula
-									{
-										boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
-										%text_string %source_string %bar_datetime_string  %chartbook_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-									else if(CustomizeMessageSettingIndex == 1) // only remove formula
-									{
-										boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-										%source_string %bar_datetime_string %chartbook_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-									else if(CustomizeMessageSettingIndex == 2) // same as no formula
-									{
-										boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-										%source_string %bar_datetime_string %chartbook_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-
-								}
-								else
-								{
-									// Formatting for Study Alert 
-									if(CustomizeMessageSettingIndex == 0) // default
-									{
-										/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") */ 
-										boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%\n%5%") 
-										%study_name %text_string %source_string %bar_datetime_string %chartbook_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-									else if(CustomizeMessageSettingIndex == 1) // only remove formula
-									{
-										/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") */ 
-										boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") 
-										%study_name %source_string %bar_datetime_string %chartbook_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-									else if(CustomizeMessageSettingIndex == 2) // only include Study Name
-									{
-										/* boost::format fmt = boost::format("<strong>%1%</strong>") */ 
-										boost::format fmt = boost::format("%1%") 
-										%study_name ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-
-								}
-							}
-						}
-
-						// Cast/Convert chartbook name stringview into SCString (1 allocation)
-						SCString sc_alert_chartbook = std::string(alert_chartbook).c_str();
+						// Parse the alert log file and prepare the text for the request 
+						// Also return the chartbook name that generated the alert 
+						ParseChartStudyAlertText(line, SourceChartImageText, CustomizeMessageContent, 
+						sc_alert_chartbook, sc_alert_chart_num);
 
 						// Get the name of the chartbook where this study is applied 
 						SCString current_chartbook = sc.ChartbookName();
 
-						// the alert came from the same chartbook as where this study exists
+						// The alert came from the same chartbook as where this study exists
+						// Each chartbook must handle it's own chart screenshots
 						if(sc_alert_chartbook == current_chartbook)
 						{
-							// mark: File is created Chart/Study Alert 
-							//
-							// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH STUDY INPUT
+							// Feature: FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 							if(Input_FindDuplicateStudies.GetYesNo() )
 							{
-								// Get the highest chart number in the current chartbook 
-								int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
-
-								// get the current chart number for reference
-								int this_chart_num = sc.ChartNumber;
-
-								// vector used to save the chart numbers of charts in current chartbook
-								std::vector <int> chart_numbers;
-
-								// Go through each chart number from 1 to highest chart number to 
-								// determine the chart numbers that exist and save those. 
-								for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
-								{
-									// returns true if chart number exists in current chartbook, empty string refers to current chartbook
-									if(sc.IsChartNumberExist(ChartNumber, ""))
-									{
-										// add this chart number to the vector 
-										chart_numbers.push_back(ChartNumber);
-									}
-								}	
-
-								// iterate through the existing number of charts with chart numbers as values  
-								for(int i = 0; i < chart_numbers.size(); i++)
-								{
-									// Check if the study with this name is found on this chart number
-									// arguments: (chart number, study name as a string, search for study short name instead)
-									int is_study_found = sc.GetStudyIDByName(chart_numbers[i], sc.GraphName.GetChars(), 0);
-
-									// If the study is found and if the chart it was found on is not the current chart
-									if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
-									{
-										// This should only return true if the study exists on two or more chartbooks
-										// print which charts where the study is found
-										msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
-										"per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
-										sc.AddMessageToLog(msg,1);
-									}
-								}
+								// Call the function which simply returns a message in the log if a duplicate is found
+								FindDuplicateStudiesInSameChartbook(sc, sc.GraphName.GetChars(), msg);
 							}
 							
-							// Cast/Convert chart number stringview into int 
-							int sc_alert_chart_num = std::stoi(alert_chart_number);
-
 							// Confirm which Telegram method the user specified
 							if(Input_SendChartImage.GetBoolean() == 0)
 							{
 								// use sendMessage method instead of sendPhoto
-								method = "/sendMessage?";
-
-								// Set our Telegram URL for the POST request 
-								SCString URL = std::move(host) + std::move(token) + std::move(method);
-
-								// SIERRA CHART POST REQUEST WITH JSON BODY EXAMPLE 
-								//
-								// Create the json object for Telegram
-								// For simplicity using nlohmann json
-								nlohmann::json object = {
-								{"chat_id", std::move(ChatID)},
-								{"text", std::move(line)},
-								{"parse_mode", "HTML"},	
-								}; 
-
-								// Convert nlohmann json into SCString in one line. 
-								SCString query = object.dump().c_str(); 						
-								
-								/* msg.Format("Query debug: %s", query.GetChars() ); */
-								/* sc.AddMessageToLog(msg,1); */
-
-								// Set our headers 
-								n_ACSIL::s_HTTPHeader headers[1];
-								headers[0].Name = "Content-Type";
-								headers[0].Value = "application/json";
-
-								if(sc.MakeHTTPPOSTRequest(URL, query, headers, 1) )
-								{
-									// successful request 
-									/* msg.Format("Response: %s", sc.HTTPResponse.GetChars()); */
-									/* sc.AddMessageToLog(msg,1); */
-								}
-								else
-								{
-									// problem with the request 
-									msg.Format("Error with the Request: %s", sc.HTTPResponse.GetChars());
-									sc.AddMessageToLog(msg,1);
-								}
+								SCTelegramPostRequest(sc, host, token, ChatID, line, msg);
 							}
 							else
 							{
 								// set the method variable which is passed into the URL string
-								method = "/sendPhoto?";
+								SCString method = "/sendPhoto?";
 
 								// Set our Telegram URL for the POST request 
 								SCString URL = std::move(host) + std::move(token) + std::move(method);
@@ -964,7 +1072,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Format the text for the image file name 
 								// The source string combined with the current date time 
-								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
+								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", SourceChartImageText.c_str(), Year, Month, Day, 
 								Hour, Minute, Second);
 
 								// Create the file path to our image file 
@@ -987,7 +1095,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Call the HTTP POST Request in a separate thread. (not recommended for large scale operations)
 								// This function calls sendPhoto Telegram method
-								std::thread request_thread(send_photo, URL, ChatID, FilePath, line);
+								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
 
 								// detach the thread and it will finish on it's own. 
 								request_thread.detach();
@@ -1004,185 +1112,38 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 					}
 					else if(line.find("Type: Drawing") != std::string::npos)
 					{
-						// STRING PARSING LOGIC for Chart Drawing Alerts
-						
-						// find various text inside the string
-						std::size_t source_start_pos = line.find("Source");
-						std::size_t source_end_pos = line.find('|', source_start_pos);
+						// Get the user setting for customize message content
+						int CustomizeMessageContent = Input_CustomizeMessageContent.GetIndex();
 
-						// save the source chart text for our image file text 
-						source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+						// Parse the alert log file and prepare the text for the request 
+						// Also return the chartbook name that generated the alert 
+						ParseChartDrawingAlertText(line, SourceChartImageText, CustomizeMessageContent, 
+						sc_alert_chartbook, sc_alert_chart_num);
 
-						std::size_t text_start_pos = line.find("Chart Drawing");
-						std::size_t text_end_pos = line.find('|', text_start_pos);
-
-						// MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
-						// Get Iterators to the Price (there are two prices in the alert text)
-						
-						// We start from the end of the string and work our way back (safest way)
-						std::size_t price2_end_pos = line.rfind(')', text_end_pos);
-						std::size_t price2_start_pos = line.rfind('(', price2_end_pos);
-
-						// Insert text for price2 formatting 
-						line.insert(price2_end_pos, "</code>");
-						line.insert(price2_start_pos + 1, "<code>"); 
-						
-						// reset the iterator for price2_start_pos in order to safely get price1 iterators
-						price2_start_pos = line.rfind('(', text_end_pos);
-
-						// Get the iterators for price1
-						std::size_t price1_end_pos = line.rfind(')', price2_start_pos);
-						std::size_t price1_start_pos = line.rfind('(', price1_end_pos);
-						
-						// Insert text for price1 formatting
-						line.insert(price1_end_pos, "</code>");
-						line.insert(price1_start_pos + 1, "<code>"); 
-
-						// once done inserting the text, RESET Alert Text End Position to the new correct iterator
-						text_end_pos = line.find('|', text_start_pos);
-
-						// continue with the other substrings
-						std::size_t bar_datetime_start_pos = line.find("Bar date-time");
-						std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos);
-
-						// Only need the start position since it reads until end of the string
-						std::size_t chartbook_start_pos = line.find("Chartbook");
-
-						// SAVE the alert log chartbook name independantly 
-						std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
-
-						// Get the chart number where the alert originated from
-						std::size_t find_chtbooknum = line.find("ChartNumber: ");
-						std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
-						std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
-
-						std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
-						cht_number_end_pos  - cht_number_start_pos);
-
-						// Alert chart number must persist past the string formatting we are about to do 
-						std::string alert_chart_number = std::string(alert_cht_number);
-						
-						if(source_start_pos != std::string::npos) // safety check/good measure 
-						{
-							// Make reference to different sequences of characters from the underlying string
-							// without copying any of the data (lightweight) 
-							std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
-							std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-
-							std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
-							bar_datetime_end_pos - bar_datetime_start_pos);
-							std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
-
-							// Format the string to pass in Telegram message
-							boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") %text_string 
-							%bar_datetime_string %chartbook_string %source_string ;
-
-							// overwrite our line string with the formatted string
-							line = fmt.str();
-						}
-
-						// Cast/Convert chartbook name stringview into SCString (1 allocation)
-						SCString sc_alert_chartbook = std::string(alert_chartbook).c_str();
-
-						// Get the current chartbook name 
+						// Get the name of the chartbook where this study is applied 
 						SCString current_chartbook = sc.ChartbookName();
 
 						// the alert came from the same chartbook as where this study exists
 						if(sc_alert_chartbook == current_chartbook)
 						{
-							// mark: File is created Chart Drawing Alert 
-							//
-							// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, If ENABLED WITH A STUDY INPUT
+							// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 							if(Input_FindDuplicateStudies.GetYesNo() )
 							{
-								// Get the highest chart number in the current chartbook 
-								int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
-
-								// get the current chart number for reference
-								int this_chart_num = sc.ChartNumber;
-
-								// vector used to save the chart numbers of charts in current chartbook
-								std::vector <int> chart_numbers;
-
-								// Go through each chart number from 1 to highest chart number to 
-								// determine the chart numbers that exist and save those. 
-								for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
-								{
-									// returns true if chart number exists in current chartbook, empty string refers to current chartbook
-									if(sc.IsChartNumberExist(ChartNumber, ""))
-									{
-										// add this chart number to the vector 
-										chart_numbers.push_back(ChartNumber);
-									}
-								}	
-
-								// iterate through the existing number of charts with chart numbers as values  
-								for(int i = 0; i < chart_numbers.size(); i++)
-								{
-									// Check if the study with this name is found on this chart number
-									// arguments: (chart number, study name as a string, search for study short name instead)
-									int is_study_found = sc.GetStudyIDByName(chart_numbers[i], sc.GraphName.GetChars(), 0);
-
-									// If the study is found and if the chart it was found on is not the current chart
-									if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
-									{
-										// This should only return true if the study exists on two or more chartbooks
-										// print which charts where the study is found
-										msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
-										"per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
-										sc.AddMessageToLog(msg,1);
-									}
-								}
+								// Call the function which simply returns a message in the log if a duplicate is found
+								FindDuplicateStudiesInSameChartbook(sc, sc.GraphName.GetChars(), msg);
 							}
-
-							// Cast/Convert chart number stringview into int 
-							int sc_alert_chart_num = std::stoi(alert_chart_number);
 
 							// SEND TELEGRAM message or message with photo 
 							// Confirm which Telegram method the user specified
 							if(Input_SendChartImage.GetBoolean() == 0)
 							{
 								// use sendMessage method instead of sendPhoto
-								method = "/sendMessage?";
-								
-								// Set our Telegram URL for the POST request 
-								SCString URL = std::move(host) + std::move(token) + std::move(method);
-
-								// SIERRA CHART POST REQUEST WITH JSON BODY EXAMPLE 
-								
-								// Create the json object for Telegram
-								// For simplicity using nlohmann json
-								nlohmann::json object = {
-								{"chat_id", std::move(ChatID)},
-								{"text", std::move(line)},
-								{"parse_mode", "HTML"},	
-								}; 
-
-								// Convert Json into SCString in one line. 
-								SCString query = object.dump().c_str(); 						
-
-								// Set our headers 
-								n_ACSIL::s_HTTPHeader headers[1];
-								headers[0].Name = "Content-Type";
-								headers[0].Value = "application/json";
-
-								if(sc.MakeHTTPPOSTRequest(URL, query, headers, 1) )
-								{
-									// successful request 
-									/* msg.Format("Response: %s", sc.HTTPResponse.GetChars()); */
-									/* sc.AddMessageToLog(msg,1); */
-								}
-								else
-								{
-									// problem with the request 
-									msg.Format("Error with the Request: %s", sc.HTTPResponse.GetChars());
-									sc.AddMessageToLog(msg,1);
-								}
+								SCTelegramPostRequest(sc, host, token, ChatID, line, msg);
 							}
 							else
 							{
 								// set the method variable which is passed into the URL string
-								method = "/sendPhoto?";
+								SCString method = "/sendPhoto?";
 
 								// get the year month and day from SCDateTimeVariable
 								int Year, Month, Day, Hour, Minute, Second;
@@ -1190,7 +1151,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Format the text for the image file name 
 								// The source string combined with the current date time 
-								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
+								msg.Format("\\%s %d-%d-%d %d_%d_%d.png", SourceChartImageText.c_str(), Year, Month, Day, 
 								Hour, Minute, Second);
 
 								// Create the file path to our image file 
@@ -1216,7 +1177,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Call the HTTP POST Request in a separate thread. (not recommended for large scale operations)
 								// This function calls sendPhoto Telegram method
-								std::thread request_thread(send_photo, URL, ChatID, FilePath, line);
+								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
 
 								// detach the thread and it will finish on it's own. 
 								request_thread.detach();
@@ -1293,7 +1254,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 				// update the last modified time of the file in memory
 				LastModTime = currentModTimePoint;
 				
-				// open the file for reading
+				// open the file for reading (precautionary first check)
 				std::ifstream file(LogFile);
 				if (file) 
 				{
@@ -1314,7 +1275,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 					// Precaution/good practice: close the file after first read because the next command opens it again
 					file.close();
 
-					// open the file for reading
+					// Open the file for reading 
 					std::ifstream file(LogFile);
 					if (file) 
 					{
@@ -1327,348 +1288,44 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 							// saved number of lines (only process new lines)
 							if(CountLines > NumberOfLines)
 							{
-
 								// REMEMBER globally the new number of lines 
 								NumberOfLines = CountLines;
 
 								// Check for if its a Chart/Study Alert or Chart Drawing Alert 
 								if(line.find("Type: Study") != std::string::npos)
 								{
-									// String parsing logic 
-									// find various text inside the string
-									std::size_t source_start_pos = line.find("Source");
-									std::size_t source_end_pos = line.find('|', source_start_pos);
+									// Get the user setting for customize message content
+									int CustomizeMessageContent = Input_CustomizeMessageContent.GetIndex();
 
-									// save the source chart text for our image file text 
-									source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
-
-									// Alert text string (different for Chart Alerts)
-									std::size_t text_start_pos = line.find("Formula");
-									std::size_t first_pipe_pos = line.find('|', text_start_pos);
-
-									// set the end pos to the second pipe character to capture the alert condition that was triggered.
-									// Necessary to set the starting position 1 in front or else it will just find the same one 
-									std::size_t text_end_pos = line.find('|', first_pipe_pos + 1);
-
-									// Determine specifically if it is a Chart or Study alert 
-									// This will be done further down by comparing the source string with study text string
-									
-									// This iterator gives us a starting point to retrieve the Study Name (short name). 
-									std::size_t is_studyalert_start_pos = line.rfind("Study:", text_start_pos);
-
-									std::size_t study_name_start_pos = 0;
-									std::size_t study_name_end_pos = 0;
-
-									// 2024-01-05 Due to an inconsistency found with studies that have Use As Main Price
-									// Graph enabled For now it is necessary to perform a check that will ensure the
-									// study name is retrieved safely. 
-									//
-									// This variable is used to inform the program of the inconsistency 
-									bool format_inconsistency = 0;
-
-									// if the iterator returns null it means that Display As Main Price Graph was enabled for the study.
-									// When that is enabled it changes the formatting of the Alert Log to not include the Study: Study Name
-									// it will be necessary to format the message differently further below
-									if(is_studyalert_start_pos == std::string::npos) 
-									{
-										// set the boolean to positive informing the study to use the separate formatting method 
-										format_inconsistency = 1;
-									}
-									else
-									{
-										// if we get here we can continue to initialize the other variables safely 
-										// set the starting point for the Study Name 7 characters infront of text: "Study: "
-										study_name_start_pos = is_studyalert_start_pos + 7;
-
-										// Set the end point of the substring
-										study_name_end_pos = line.find('|', study_name_start_pos) - 1;
-									}
-
-									// Create our substring (safely since if they are initialized and it should not use invalid iterators)
-									std::string_view study_name (line.c_str() + study_name_start_pos, study_name_end_pos - study_name_start_pos);
-
-									// potentially have something here to take care of any special HTML text formatting
-									
-									// continue with the other substrings
-									std::size_t bar_datetime_start_pos = line.find("Bar start:");
-									std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos) - 5; // removing the ms timestamp
-
-									// only need the start position since it reads until end of the string
-									std::size_t chartbook_start_pos = line.find("Chartbook:");
-									
-									// SAVE the alert log chartbook name independantly 
-									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
-
-									// Get the chart number where the alert originated from
-									std::size_t find_chtbooknum = line.find("ChartNumber: ");
-									std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
-									std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
-
-									// save only the chart number itself  
-									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
-									cht_number_end_pos  - cht_number_start_pos);
-
-									// Alert chart number must persist past the string formatting we are about to do 
-									std::string alert_chart_number = std::string(alert_cht_number);
-
-									if(source_start_pos != std::string::npos) // safety check
-									{
-										// std::string_view Make reference to different sequences of characters from the underlying string
-										// without copying any of the data (lightweight) 
-										std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
-
-										// Determine if source string and study name string are identical. This will tell us if the alert was from
-										// a Chart Alert or a Study Alert.
-
-										// Only check if it's a Chart or Study Alert if our previous substring got initialized (aka normal behaviour)
-										std::size_t find_substring_match = 0;
-										if(study_name_start_pos != 0) 
-										{
-											// find the study_name contents inside of source_string. 
-											// If a full match is found (iterator set to a valid number), this was a Chart Alert.
-											find_substring_match = source_string.find(study_name);
-										}
-
-										bool is_chart_alert = 0;
-										// check if the find_substring_match iterator was initialized and it was not initialized to null
-										if(find_substring_match != 0 && find_substring_match != std::string::npos)
-										{
-											// debug 
-											/* sc.AddMessageToLog("The Study Name is found within Source String, this was a Chart Alert.",1); */
-
-											// informs the following code to format it as a chart alert instead 
-											is_chart_alert = 1;
-
-										}
-
-										// set the alert text substring (using std::string because this string 
-										// might need to be modified.
-										//
-										// With Chart/Study Alerts, this is where the formula is found. 
-										std::string text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-
-										// find any < characters in the formula and replace them with html equivalent
-										// this is a fix for where the < character is being interpreted as an opening
-										// brace for html formatting. We want to display the literal character instead. 
-										std::size_t find_less_than = text_string.find('<');
-										if(find_less_than != std::string::npos)
-										{
-											// the < character is found 
-											//
-											// Replace all occurrences of '<' with '&lt;'
-											std::size_t pos = 0;
-											while ((pos = text_string.find('<', pos)) != std::string::npos) 
-											{
-												text_string.replace(pos, 1, "&lt;");
-												pos += 4; // Move past the replaced '&lt;'
-											}
-										}
-
-										// set the date_time substring	
-										std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
-										bar_datetime_end_pos - bar_datetime_start_pos);
-
-										// set the chartbook substring
-										std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
-
-
-										// Get the Input selection for Customize Message Text
-										int CustomizeMessageSettingIndex = Input_CustomizeMessageContent.GetIndex();
-
-										// Format the string to pass in Telegram message
-										if(format_inconsistency == 1) // Will remove when SC fixes bug
-										{
-											// Different formatting to adjust for the lack of Study Name 
-											if(CustomizeMessageSettingIndex == 0) // default include formula
-											{
-												boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
-												%text_string %source_string %bar_datetime_string  %chartbook_string ;
-
-												// overwrite our line string with the formatted string
-												line = fmt.str();
-											}
-											else if(CustomizeMessageSettingIndex == 1) // only remove formula
-											{
-												boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-												%source_string %bar_datetime_string %chartbook_string ;
-
-												// overwrite our line string with the formatted string
-												line = fmt.str();
-											}
-											else if(CustomizeMessageSettingIndex == 2) // same as no formula
-											{
-												boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-												%source_string %bar_datetime_string %chartbook_string ;
-
-												// overwrite our line string with the formatted string
-												line = fmt.str();
-											}
-										}
-										else
-										{
-											if(is_chart_alert == 1)
-											{
-												// Formatting for Chart Alert 
-												if(CustomizeMessageSettingIndex == 0) // default include formula
-												{
-													boost::format fmt = boost::format("%1%\n%2%\n%3%\n%4%") 
-													%text_string %source_string %bar_datetime_string  %chartbook_string ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-												else if(CustomizeMessageSettingIndex == 1) // only remove formula
-												{
-													boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-													%source_string %bar_datetime_string %chartbook_string ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-												else if(CustomizeMessageSettingIndex == 2) // same as no formula
-												{
-													boost::format fmt = boost::format("%1%\n%2%\n%3%") 
-													%source_string %bar_datetime_string %chartbook_string ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-											}
-											else
-											{
-												// Formatting for Study Alert 
-												if(CustomizeMessageSettingIndex == 0) // default
-												{
-													/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%\n%5%") */ 
-													boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%\n%5%") 
-													%study_name %text_string %source_string %bar_datetime_string %chartbook_string ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-												else if(CustomizeMessageSettingIndex == 1) // only remove formula
-												{
-													/* boost::format fmt = boost::format("<strong>%1%</strong>\n\n%2%\n%3%\n%4%") */ 
-													boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") 
-													%study_name %source_string %bar_datetime_string %chartbook_string ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-												else if(CustomizeMessageSettingIndex == 2) // only include Study Name
-												{
-													/* boost::format fmt = boost::format("<strong>%1%</strong>") */ 
-													boost::format fmt = boost::format("%1%") 
-													%study_name ;
-
-													// overwrite our line string with the formatted string
-													line = fmt.str();
-												}
-											}
-										}
-									}
-
-									// Cast/Convert chartbook name stringview into SCString (1 allocation)
-									SCString sc_alert_chartbook = std::string(alert_chartbook).c_str();
+									// Parse the alert log file and prepare the text for the request 
+									// Also return the chartbook name that generated the alert 
+									ParseChartStudyAlertText(line, SourceChartImageText, CustomizeMessageContent, 
+									sc_alert_chartbook, sc_alert_chart_num);
 
 									// Get the name of the chartbook where this study is applied 
 									SCString current_chartbook = sc.ChartbookName();
 
-									// the alert came from the same chartbook as where this study exists
+									// The alert came from the same chartbook as where this study exists
+									// Each chartbook must handle it's own chart screenshots
 									if(sc_alert_chartbook == current_chartbook)
 									{
-										// mark: Written to existing alert log file Chart/Study Alert 
-										//
-										// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
+										// Feature: FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 										if(Input_FindDuplicateStudies.GetYesNo() )
 										{
-											// Get the highest chart number in the current chartbook 
-											int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
-
-											// get the current chart number for reference
-											int this_chart_num = sc.ChartNumber;
-
-											// vector used to save the chart numbers of charts in current chartbook
-											std::vector <int> chart_numbers;
-
-											// Go through each chart number from 1 to highest chart number to 
-											// determine the chart numbers that exist and save those. 
-											for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
-											{
-												// returns true if chart number exists in current chartbook, empty string refers to current chartbook
-												if(sc.IsChartNumberExist(ChartNumber, ""))
-												{
-													// add this chart number to the vector 
-													chart_numbers.push_back(ChartNumber);
-												}
-											}	
-
-											// iterate through the existing number of charts with chart numbers as values  
-											for(int i = 0; i < chart_numbers.size(); i++)
-											{
-												// Check if the study with this name is found on this chart number
-												// arguments: (chart number, study name as a string, search for study short name instead)
-												int is_study_found = sc.GetStudyIDByName(chart_numbers[i], sc.GraphName.GetChars(), 0);
-
-												// If the study is found and if the chart it was found on is not the current chart
-												if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
-												{
-													// This should only return true if the study exists on two or more chartbooks
-													// print which charts where the study is found
-													msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
-													"per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
-													sc.AddMessageToLog(msg,1);
-												}
-											}
+											// Call the function which simply returns a message in the log if a duplicate is found
+											FindDuplicateStudiesInSameChartbook(sc, sc.GraphName.GetChars(), msg);
 										}
 										
-										// Cast/Convert chart number stringview into int 
-										int sc_alert_chart_num = std::stoi(alert_chart_number);
-
 										// Confirm which Telegram method the user specified
 										if(Input_SendChartImage.GetBoolean() == 0)
 										{
 											// use sendMessage method instead of sendPhoto
-											method = "/sendMessage?";
-
-											// Set our Telegram URL for the POST request 
-											SCString URL = std::move(host) + std::move(token) + std::move(method);
-
-											// SIERRA CHART POST REQUEST WITH JSON BODY EXAMPLE 
-											//
-											// Create the json object for Telegram
-											// For simplicity using nlohmann json
-											nlohmann::json object = {
-											{"chat_id", std::move(ChatID)},
-											{"text", std::move(line)},
-											{"parse_mode", "HTML"},	
-											}; 
-
-											// Convert nlohmann json into SCString in one line. 
-											SCString query = object.dump().c_str(); 						
-
-											// Set our headers 
-											n_ACSIL::s_HTTPHeader headers[1];
-											headers[0].Name = "Content-Type";
-											headers[0].Value = "application/json";
-
-											if(sc.MakeHTTPPOSTRequest(URL, query, headers, 1) )
-											{
-												// successful request 
-												/* msg.Format("Response: %s", sc.HTTPResponse.GetChars()); */
-												/* sc.AddMessageToLog(msg,1); */
-											}
-											else
-											{
-												// problem with the request 
-												msg.Format("Error with the Request: %s", sc.HTTPResponse.GetChars());
-												sc.AddMessageToLog(msg,1);
-											}
+											SCTelegramPostRequest(sc, host, token, ChatID, line, msg);
 										}
 										else
 										{
 											// set the method variable which is passed into the URL string
-											method = "/sendPhoto?";
+											SCString method = "/sendPhoto?";
 
 											// Set our Telegram URL for the POST request 
 											SCString URL = std::move(host) + std::move(token) + std::move(method);
@@ -1679,7 +1336,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 											// Format the text for the image file name 
 											// The source string combined with the current date time 
-											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
+											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", SourceChartImageText.c_str(), Year, Month, Day, 
 											Hour, Minute, Second);
 
 											// Create the file path to our image file 
@@ -1703,7 +1360,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Call the HTTP POST Request in a separate thread. 
 											// (not recommended for large scale operations)
 											// This function calls sendPhoto Telegram method
-											std::thread request_thread(send_photo, URL, ChatID, FilePath, line);
+											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
 
 											// detach the thread and it will finish on it's own. 
 											request_thread.detach();
@@ -1723,85 +1380,13 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 								}
 								else if(line.find("Type: Drawing") != std::string::npos)
 								{
-									// String parsing for Chart Drawing Alerts
-									// find various text inside the string
-									std::size_t source_start_pos = line.find("Source");
-									std::size_t source_end_pos = line.find('|', source_start_pos);
+									// Get the user setting for customize message content
+									int CustomizeMessageContent = Input_CustomizeMessageContent.GetIndex();
 
-									// save the source chart text for our image file text 
-									source_imagetext = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
-
-									// Alert text string
-									std::size_t text_start_pos = line.find("Chart Drawing");
-									std::size_t text_end_pos = line.find('|', text_start_pos);
-									
-									// MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
-									// Get Iterators to the Price (there are two prices in the alert text)
-									
-									// We start from the end of the string and work our way back (safest way)
-									std::size_t price2_end_pos = line.rfind(')', text_end_pos);
-									std::size_t price2_start_pos = line.rfind('(', price2_end_pos);
-
-									// Insert text for price2 formatting 
-									line.insert(price2_end_pos, "</code>");
-									line.insert(price2_start_pos + 1, "<code>"); 
-
-									// reset the iterator for price2_start_pos in order to safely get price1 iterators
-									price2_start_pos = line.rfind('(', text_end_pos);
-
-									// Get the iterators for price1
-									std::size_t price1_end_pos = line.rfind(')', price2_start_pos);
-									std::size_t price1_start_pos = line.rfind('(', price1_end_pos);
-									
-									// Insert text for price1 formatting
-									line.insert(price1_end_pos, "</code>");
-									line.insert(price1_start_pos + 1, "<code>"); 
-
-									// once done inserting the text, RESET Alert Text End Position to the new correct iterator
-									text_end_pos = line.find('|', text_start_pos);
-
-									// continue with the other substrings
-									std::size_t bar_datetime_start_pos = line.find("Bar date-time");
-									std::size_t bar_datetime_end_pos = line.find('|', bar_datetime_start_pos);
-
-									// only need the start position since it reads until end of the string
-									std::size_t chartbook_start_pos = line.find("Chartbook");
-									
-									// SAVE the alert log chartbook name independantly 
-									std::string_view alert_chartbook (line.c_str() + chartbook_start_pos + 11);
-
-									// Get the chart number where the alert originated from
-									std::size_t find_chtbooknum = line.find("ChartNumber: ");
-									std::size_t cht_number_start_pos = line.find(' ', find_chtbooknum) + 1;
-									std::size_t cht_number_end_pos = line.find(' ', cht_number_start_pos);
-
-									std::string_view alert_cht_number (line.c_str() + cht_number_start_pos , 
-									cht_number_end_pos  - cht_number_start_pos);
-
-									// Alert chart number must persist past the string formatting we are about to do 
-									std::string alert_chart_number = std::string(alert_cht_number);
-
-									if(source_start_pos != std::string::npos) // safety check
-									{
-										// make reference to different sequences of characters from the underlying string
-										// without copying any of the data (lightweight) 
-										std::string_view source_string(line.c_str() + source_start_pos, source_end_pos - source_start_pos);
-										std::string_view text_string (line.c_str() + text_start_pos, text_end_pos - text_start_pos);
-
-										std::string_view bar_datetime_string (line.c_str() + bar_datetime_start_pos,
-										bar_datetime_end_pos - bar_datetime_start_pos);
-										std::string_view chartbook_string (line.c_str() + chartbook_start_pos);
-
-										// Format the string to pass in Telegram message
-										boost::format fmt = boost::format("%1%\n\n%2%\n%3%\n%4%") %text_string 
-										%bar_datetime_string %chartbook_string %source_string ;
-
-										// overwrite our line string with the formatted string
-										line = fmt.str();
-									}
-
-									// Cast/Convert chartbook name stringview into SCString (1 allocation)
-									SCString sc_alert_chartbook = std::string(alert_chartbook).c_str();
+									// Parse the alert log file and prepare the text for the request 
+									// Also return the chartbook name that generated the alert 
+									ParseChartDrawingAlertText(line, SourceChartImageText, CustomizeMessageContent, 
+									sc_alert_chartbook, sc_alert_chart_num);
 
 									// Get the name of the chartbook where this study is applied 
 									SCString current_chartbook = sc.ChartbookName();
@@ -1809,97 +1394,23 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 									// the alert came from the same chartbook as where this study exists
 									if(sc_alert_chartbook == current_chartbook)
 									{
-										// mark: Written to existing alert log file Chart Drawing Alert 
-										
 										// FIND DUPLICATE STUDIES IN THE SAME CHARTBOOK, ENABLED WITH A STUDY INPUT
 										if(Input_FindDuplicateStudies.GetYesNo() )
 										{
-											// Get the highest chart number in the current chartbook 
-											int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
-
-											// get the current chart number for reference
-											int this_chart_num = sc.ChartNumber;
-
-											// vector used to save the chart numbers of charts in current chartbook
-											std::vector <int> chart_numbers;
-
-											// Go through each chart number from 1 to highest chart number to 
-											// determine the chart numbers that exist and save those. 
-											for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
-											{
-												// returns true if chart number exists in current chartbook, empty string refers to current chartbook
-												if(sc.IsChartNumberExist(ChartNumber, ""))
-												{
-													// add this chart number to the vector 
-													chart_numbers.push_back(ChartNumber);
-												}
-											}	
-
-											// iterate through the existing number of charts with chart numbers as values  
-											for(int i = 0; i < chart_numbers.size(); i++)
-											{
-												// Check if the study with this name is found on this chart number
-												// arguments: (chart number, study name as a string, search for study short name instead)
-												int is_study_found = sc.GetStudyIDByName(chart_numbers[i], sc.GraphName.GetChars(), 0);
-
-												// If the study is found and if the chart it was found on is not the current chart
-												if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
-												{
-													// This should only return true if the study exists on two or more chartbooks
-													// print which charts where the study is found
-													msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
-													"per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
-													sc.AddMessageToLog(msg,1);
-												}
-											}
+											// Call the function which simply returns a message in the log if a duplicate is found
+											FindDuplicateStudiesInSameChartbook(sc, sc.GraphName.GetChars(), msg);
 										}
 
-										// Cast/Convert chart number stringview into int 
-										int sc_alert_chart_num = std::stoi(alert_chart_number);
 
 										if(Input_SendChartImage.GetBoolean() == 0)
 										{
 											// use sendMessage method instead of sendPhoto
-											method = "/sendMessage?";
-
-											// Set our Telegram URL for the POST request 
-											SCString URL = std::move(host) + std::move(token) + std::move(method);
-
-											// SIERRA CHART POST REQUEST WITH JSON BODY EXAMPLE 
-											//
-											// Create the json object for Telegram
-											// For simplicity using nlohmann json
-											nlohmann::json object = {
-											{"chat_id", std::move(ChatID)},
-											{"text", std::move(line)},
-											{"parse_mode", "HTML"},	
-											}; 
-
-											// Convert nlohmann json into SCString in one line. 
-											SCString query = object.dump().c_str(); 						
-											
-											// Set our headers 
-											n_ACSIL::s_HTTPHeader headers[1];
-											headers[0].Name = "Content-Type";
-											headers[0].Value = "application/json";
-
-											if(sc.MakeHTTPPOSTRequest(URL, query, headers, 1) )
-											{
-												// successful request 
-												/* msg.Format("Response: %s", sc.HTTPResponse.GetChars()); */
-												/* sc.AddMessageToLog(msg,1); */
-											}
-											else
-											{
-												// problem with the request 
-												msg.Format("Error with the Request: %s", sc.HTTPResponse.GetChars());
-												sc.AddMessageToLog(msg,1);
-											}
+											SCTelegramPostRequest(sc, host, token, ChatID, line, msg);
 										}
 										else
 										{
 											// set the method variable which is passed into the URL string
-											method = "/sendPhoto?";
+											SCString method = "/sendPhoto?";
 
 											// Set our Telegram URL for the POST request 
 											SCString URL = std::move(host) + std::move(token) + std::move(method);
@@ -1910,7 +1421,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 											// Format the text for the image file name 
 											// The source string combined with the current date time 
-											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", source_imagetext.c_str(), Year, Month, Day, 
+											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", SourceChartImageText.c_str(), Year, Month, Day, 
 											Hour, Minute, Second);
 
 											// Create the file path to our image file 
@@ -1934,7 +1445,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Call the HTTP POST Request in a separate thread. 
 											// (not recommended for large scale operations)
 											// This function calls sendPhoto Telegram method
-											std::thread request_thread(send_photo, URL, ChatID, FilePath, line);
+											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
 
 											// detach the thread and it will finish on it's own. 
 											request_thread.detach();
@@ -1959,13 +1470,13 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 					}
 					else
 					{
-						sc.AddMessageToLog("Error opening file! 1",1);
+						sc.AddMessageToLog("Error opening file! 2",1);
 					}
 
 				} 
 				else
 				{
-					sc.AddMessageToLog("Error opening file! 2",1);
+					sc.AddMessageToLog("Error opening file! 1",1);
 				}
 			}
 		}
@@ -1986,4 +1497,3 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		num_files_memory = number_of_files;
 	}
 }
-
