@@ -165,11 +165,10 @@ void ParseChartStudyAlertText(std::string& line, std::string& SourceChartImageTe
 {
 	// String parsing logic 
 	// find various text inside the string
+	//
+	// Get the Source Chart Text String
 	std::size_t source_start_pos = line.find("Source");
 	std::size_t source_end_pos = line.find('|', source_start_pos);
-
-	// save the source chart text for our image file text 
-	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
 
 	// Alert text string (different for Chart Alerts)
 	std::size_t text_start_pos = line.find("Formula");
@@ -178,6 +177,52 @@ void ParseChartStudyAlertText(std::string& line, std::string& SourceChartImageTe
 	// set the end pos to the second pipe character to capture the alert condition that was triggered.
 	// Necessary to set the starting position 1 in front or else it will just find the same one 
 	std::size_t text_end_pos = line.find('|', first_pipe_pos + 1);
+
+	// REMOVE / characters from Source Chart Text
+	// check over the substring for any forward slash character and kill loop if we reach npos string position 
+	for(auto i = source_end_pos; i != source_start_pos && i != std::string::npos; i--)
+	{
+		if(line[i] == '/')
+		{
+			// Replace the character at the position i with a whitespace 
+			//string& replace (size_t pos, size_t len, const string& str);
+        	line.replace(i, 1, " ");
+		}
+	}
+
+	// Do the same for the Alert Text String
+	for(auto i = text_end_pos; i != text_start_pos && i != std::string::npos; i--)
+	{
+		if(line[i] == '/')
+		{
+			// Replace the character at the position i with a whitespace 
+        	line.replace(i, 1, " ");
+		}
+	}
+
+	// CREATE image file text using the source chart text iterators 
+	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+
+	// REMOVE INVALID CHARACTERS FROM Image File Text for WINDOWS FILENAME 
+	// an array of invalid characters for a windows filename
+	std::array<char, 9> invalid_filename_characters = {'\\', '/', ':', '*', '?', '"', '<', '>', '|'};
+
+	// for each of the invalid characters 
+	for(int index = 0; index < invalid_filename_characters.size(); index++)
+	{
+		// iterate backwards through the string so we can delete characters from it 
+		for(auto i = SourceChartImageText.end(); i != SourceChartImageText.begin(); i--)
+		{
+			// if current string character is equal to the current element in invalid characters array 
+			if(*i == invalid_filename_characters[index])
+			{
+				// erase this character from the string
+				/* SourceChartImageText.erase(i); */
+				// replace the invalid character with a whitespace 
+				*i = ' ';
+			}
+		}
+	}
 
 	// Determine specifically if it is a Chart or Study alert 
 	// This will be done further down by comparing the source string with study text string
@@ -407,17 +452,62 @@ void ParseChartDrawingAlertText(std::string& line, std::string& SourceChartImage
 	SCString& sc_alert_chartbook, int& sc_alert_chart_num)
 {
 	// String parsing for Chart Drawing Alerts
-	// find various text inside the string
+	// find various text inside the string that was obtained from the alert log file 
+	//
+	// Get the Source Chart Text String
 	std::size_t source_start_pos = line.find("Source");
 	std::size_t source_end_pos = line.find('|', source_start_pos);
-
-	// save the source chart text for our image file text 
-	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
 
 	// Alert text string
 	std::size_t text_start_pos = line.find("Chart Drawing");
 	std::size_t text_end_pos = line.find('|', text_start_pos);
-	
+
+	// REMOVE / from Source Chart Text
+	// check over the substring for any forward slash character and kill loop if we reach npos string position 
+	for(auto i = source_end_pos; i != source_start_pos && i != std::string::npos; i--)
+	{
+		if(line[i] == '/')
+		{
+			// Replace the character at the position i with a whitespace 
+			//string& replace (size_t pos, size_t len, const string& str);
+        	line.replace(i, 1, " ");
+		}
+	}
+
+	// do the same for the Alert Text String
+	for(auto i = text_end_pos; i != text_start_pos && i != std::string::npos; i--)
+	{
+		if(line[i] == '/')
+		{
+			// Replace the character at the position i with a whitespace 
+        	line.replace(i, 1, " ");
+		}
+	}
+
+	// CREATE image file text using the source chart text iterators 
+	SourceChartImageText = line.substr(source_start_pos + 8, source_end_pos - (source_start_pos + 8));
+
+	// REMOVE INVALID CHARACTERS FROM Image File Text for WINDOWS FILENAME 
+	// an array of invalid characters for a windows filename
+	std::array<char, 9> invalid_filename_characters = {'\\', '/', ':', '*', '?', '"', '<', '>', '|'};
+
+	// for each of the invalid characters 
+	for(int index = 0; index < invalid_filename_characters.size(); index++)
+	{
+		// iterate backwards through the string so we can delete characters from it 
+		for(auto i = SourceChartImageText.end(); i != SourceChartImageText.begin(); i--)
+		{
+			// if current string character is equal to the current element in invalid characters array 
+			if(*i == invalid_filename_characters[index])
+			{
+				// erase this character from the string
+				/* SourceChartImageText.erase(i); */
+				// replace the invalid character with a whitespace 
+				*i = ' ';
+			}
+		}
+	}
+
 	// MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
 	// Get Iterators to the Price (there are two prices in the alert text)
 	
@@ -594,6 +684,7 @@ void CURLTelegramPostRequest(const SCString& URL, const std::string& ChatID, con
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 {
+	// TODO: work on text formatting of chart drawing alerts 
 	// Study Inputs 
 	SCInputRef Input_Enabled = sc.Input[0];
 	SCInputRef Input_ChatID = sc.Input[1];
@@ -1423,6 +1514,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// The source string combined with the current date time 
 											msg.Format("\\%s %d-%d-%d %d_%d_%d.png", SourceChartImageText.c_str(), Year, Month, Day, 
 											Hour, Minute, Second);
+
+											// debug image text
+											/* sc.AddMessageToLog(msg,1); */
 
 											// Create the file path to our image file 
 											std::string FilePath = Input_ImageFolderPath.GetString()
