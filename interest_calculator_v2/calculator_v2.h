@@ -5,95 +5,123 @@
 #include <FL/Fl.H>
 #include "sqlite3.h"
 
-// This application is the first program I've written using fltk and fluid.
-// So far I dig fltk 1.4 quite a bit. 
+// This version is refactored in a C++ style using classes for each window. This application is the first program I've written using fltk 1.4 and fluid.
 
 // The goal of the application is allow the user to get a yearly average rate
-// of return that takes multiple currency or fixed income positions into account.
+// of return that takes multiple currency positions as well as the proceeds of 
+// short currency positions into account.
 
-// The program currently allows the user to input two currency positions, 
-// a fixed income position, and a 3rd currency position.
-
-// currency 1 and 2 can be either positive or negative, currency 3 can 
-// only be the result of one of the short currencies. 
+// More documentation will follow.
 
 // sqlite objects
-void load_CB(Fl_Widget*w, void* userdata);
-void save_CB(Fl_Widget*w, void* userdata);
-void clear_CB(Fl_Widget*w, void* userdata);
-void invert_CB(Fl_Widget*w, void* userdata);
-void ResponseWindow_CB(Fl_Widget*w, void* userdata);
-#include <FL/Fl_Double_Window.H>
-extern Fl_Double_Window *response_window;
+class main_window;
+#include <FL/Fl_Window.H>
+extern void WinQuit_CB(Fl_Window*, void*);
 #include <FL/Fl_Flex.H>
 #include <FL/Fl_Text_Display.H>
-extern Fl_Text_Display *c1_output;
-extern Fl_Text_Display *c2_output;
-extern Fl_Text_Display *c3_output;
-extern Fl_Text_Display *tbill_output;
-extern Fl_Text_Display *blended_output;
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Choice.H>
-extern Fl_Choice *C1_currencychoice;
-extern Fl_Choice *C2_currencychoice;
-extern Fl_Choice *C3_currencychoice;
-extern Fl_Choice *C4_currencychoice;
-extern Fl_Text_Display *c1_reinvest_output;
-extern Fl_Text_Display *c2_reinvest_output;
-extern Fl_Text_Display *c3_reinvest_output;
-extern Fl_Text_Display *tbill_reinvest_output;
+extern void Recalculate_CB(Fl_Choice*, void*);
 #include <FL/Fl_Button.H>
-extern Fl_Button *recalc_button;
-extern Fl_Button *save_button2;
-extern Fl_Button *close_button;
-void Calculate_CB(Fl_Widget*w, void* userdata);
-extern Fl_Menu_Item menu_C1_currencychoice[];
-extern Fl_Menu_Item menu_C2_currencychoice[];
-extern Fl_Menu_Item menu_C3_currencychoice[];
-extern Fl_Menu_Item menu_C4_currencychoice[];
-void Recalculate_CB(Fl_Widget*w, void* userdata);
-void input_CB(Fl_Widget*w, void* userdata);
-void WinQuit_CB(Fl_Widget*, void*);
-extern Fl_Double_Window *window;
+extern void Recalculate_CB(Fl_Button*, void*);
+
+class results_window : public Fl_Window {
+  void _results_window();
+public:
+  results_window(int X, int Y, int W, int H, const char *L = 0);
+  results_window(int W, int H, const char *L = 0);
+  results_window();
+private:
+  main_window* p_main_window;
+public:
+  Fl_Text_Display *c1_output;
+  Fl_Text_Display *c2_output;
+  Fl_Text_Display *c3_output;
+  Fl_Text_Display *tbill_output;
+  Fl_Text_Display *blended_output;
+  Fl_Choice *C1_currencychoice;
+  static Fl_Menu_Item menu_C1_currencychoice[];
+  Fl_Choice *C2_currencychoice;
+  static Fl_Menu_Item menu_C2_currencychoice[];
+  Fl_Choice *C3_currencychoice;
+  static Fl_Menu_Item menu_C3_currencychoice[];
+  Fl_Choice *C4_currencychoice;
+  static Fl_Menu_Item menu_C4_currencychoice[];
+  Fl_Text_Display *c1_reinvest_output;
+  Fl_Text_Display *c2_reinvest_output;
+  Fl_Text_Display *c3_reinvest_output;
+  Fl_Text_Display *tbill_reinvest_output;
+  Fl_Button *recalc_button;
+  Fl_Button *save_button;
+  Fl_Button *close_button;
+  void setWindowPointers(main_window* mainwindow);
+private:
+  static void Recalculate_CB(Fl_Widget*w, void* userdata);
+  static void WinQuit_CB(Fl_Widget*w, void* userdata);
+};
 #include <FL/Fl_Group.H>
-extern Fl_Flex *left_flex;
-#include <FL/Fl_Input.H>
-extern Fl_Input *input_currency1size;
-extern Fl_Input *input_currency1rate;
-extern Fl_Input *input_currency3size;
-extern Fl_Input *input_currency3rate;
+extern void save_CB(Fl_Button*, void*);
+extern void load_CB(Fl_Button*, void*);
+extern void clear_CB(Fl_Button*, void*);
 #include <FL/Fl_Return_Button.H>
-extern Fl_Return_Button *submit_button;
-extern Fl_Button *clear_button;
-extern Fl_Button *save_button;
-extern Fl_Button *load_button;
-extern Fl_Flex *right_flex;
-extern Fl_Input *input_currency2size;
-extern Fl_Input *input_currency2rate;
-extern Fl_Input *input_tbillsize;
-extern Fl_Input *input_tbillrate;
-extern Fl_Flex *middle_left_flex;
-extern Fl_Input *input_currency1proceeds;
-extern Fl_Input *input_currency1proceedsrate;
-extern Fl_Input *input_currency3proceeds;
-extern Fl_Input *input_currency3proceedsrate;
-extern Fl_Flex *middle_right_flex;
-extern Fl_Input *input_currency2proceeds;
-extern Fl_Input *input_currency2proceedsrate;
-extern Fl_Input *input_tbillproceeds;
-extern Fl_Input *input_tbillproceedsrate;
-extern Fl_Input *input_fxrate1;
-extern Fl_Button *invert_rate1;
-extern Fl_Input *input_fxrate2;
-extern Fl_Button *invert_rate2;
-extern Fl_Input *input_fxrate3;
-extern Fl_Button *invert_rate3;
+extern void Calculate_CB(Fl_Return_Button*, void*);
+#include <FL/Fl_Input.H>
+extern void input_CB(Fl_Input*, void*);
+extern void invert_CB(Fl_Button*, void*);
 #include <FL/Fl_Grid.H>
-extern Fl_Grid *header_grid1;
 #include <FL/Fl_Output.H>
-extern Fl_Output *account_positions_header;
-extern Fl_Grid *header_grid2;
-extern Fl_Output *proceeds_positions_header;
-extern Fl_Grid *header_grid4;
-extern Fl_Output *settings_header;
+
+class main_window : public Fl_Window {
+  void _main_window();
+public:
+  main_window(int X, int Y, int W, int H, const char *L = 0);
+  main_window(int W, int H, const char *L = 0);
+  main_window();
+private:
+  results_window* p_result_window;
+public:
+  Fl_Button *save_button;
+  Fl_Button *load_button;
+  Fl_Button *clear_button;
+  Fl_Return_Button *submit_button;
+  Fl_Flex *left_flex;
+  Fl_Input *input_currency1size;
+  Fl_Input *input_currency1rate;
+  Fl_Input *input_currency3size;
+  Fl_Input *input_currency3rate;
+  Fl_Flex *right_flex;
+  Fl_Input *input_currency2size;
+  Fl_Input *input_currency2rate;
+  Fl_Input *input_tbillsize;
+  Fl_Input *input_tbillrate;
+  Fl_Flex *middle_left_flex;
+  Fl_Input *input_currency1proceeds;
+  Fl_Input *input_currency1proceedsrate;
+  Fl_Input *input_currency3proceeds;
+  Fl_Input *input_currency3proceedsrate;
+  Fl_Flex *middle_right_flex;
+  Fl_Input *input_currency2proceeds;
+  Fl_Input *input_currency2proceedsrate;
+  Fl_Input *input_tbillproceeds;
+  Fl_Input *input_tbillproceedsrate;
+  Fl_Input *input_fxrate1;
+  Fl_Button *invert_rate1;
+  Fl_Input *input_fxrate2;
+  Fl_Button *invert_rate2;
+  Fl_Input *input_fxrate3;
+  Fl_Button *invert_rate3;
+  Fl_Grid *header_grid1;
+  Fl_Output *account_positions_header;
+  Fl_Grid *header_grid2;
+  Fl_Output *proceeds_positions_header;
+  Fl_Grid *header_grid4;
+  Fl_Output *settings_header;
+private:
+  static void input_CB(Fl_Widget*w, void* userdata);
+  static void save_CB(Fl_Widget*w, void* userdata);
+  static void load_CB(Fl_Widget*w, void* userdata);
+  static void clear_CB(Fl_Widget*w, void* userdata);
+  static void invert_CB(Fl_Widget*w, void* userdata);
+  static void Calculate_CB(Fl_Widget*w, void* userdata);
+};
 #endif
