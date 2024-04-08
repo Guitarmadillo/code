@@ -3,6 +3,10 @@
 #ifndef calculator_v2_h
 #define calculator_v2_h
 #include <FL/Fl.H>
+#include <stdlib.h>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
 #include "sqlite3.h"
 
 // This version is refactored in a C++ style using classes for each window. This application is the first program I've written using fltk 1.4 and fluid.
@@ -68,8 +72,6 @@ extern void Calculate_CB(Fl_Return_Button*, void*);
 #include <FL/Fl_Input.H>
 extern void input_CB(Fl_Input*, void*);
 extern void invert_CB(Fl_Button*, void*);
-#include <FL/Fl_Grid.H>
-#include <FL/Fl_Output.H>
 
 class main_window : public Fl_Window {
   void _main_window();
@@ -78,7 +80,7 @@ public:
   main_window(int W, int H, const char *L = 0);
   main_window();
 private:
-  results_window* p_result_window;
+  results_window* p_result_window = nullptr;
 public:
   Fl_Button *save_button;
   Fl_Button *load_button;
@@ -110,12 +112,9 @@ public:
   Fl_Button *invert_rate2;
   Fl_Input *input_fxrate3;
   Fl_Button *invert_rate3;
-  Fl_Grid *header_grid1;
-  Fl_Output *account_positions_header;
-  Fl_Grid *header_grid2;
-  Fl_Output *proceeds_positions_header;
-  Fl_Grid *header_grid4;
-  Fl_Output *settings_header;
+  Fl_Text_Display *account_positions_header;
+  Fl_Text_Display *proceeds_positions_header;
+  Fl_Text_Display *settings_header;
 private:
   static void input_CB(Fl_Widget*w, void* userdata);
   static void save_CB(Fl_Widget*w, void* userdata);
@@ -123,5 +122,6 @@ private:
   static void clear_CB(Fl_Widget*w, void* userdata);
   static void invert_CB(Fl_Widget*w, void* userdata);
   static void Calculate_CB(Fl_Widget*w, void* userdata);
+  static void WinQuit_CB(Fl_Widget*w, void* userdata);
 };
 #endif
