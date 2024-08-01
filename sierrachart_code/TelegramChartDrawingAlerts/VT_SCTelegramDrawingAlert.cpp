@@ -8,11 +8,10 @@
 
 #include "sierrachart.h"
 
-// const int StudyVersion = 135 
-// Last Updated Sun Mar 10 23:16:58 CST 2024
+// const int StudyVersion = 136 
+// Last Updated Thu Aug  1 11:06:26 EDT 2024
 SCDLLName("VerrilloTrading - Telegram Chart Drawing Alerts")
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void GetLogsFolderPath(SCStudyInterfaceRef sc, std::string& LogsFolderPath)
 {
 	// Get the directory of sierra data folder from a function directly into std::string
@@ -114,9 +113,6 @@ void FindMostRecentFile(SCStudyInterfaceRef sc, const std::string& LogsFolderPat
 			}
 		}
 	}
-
-
-
 }
 void FindDuplicateStudiesInSameChartbook(SCStudyInterfaceRef sc, const char* StudyName, SCString& msg)
 {
@@ -508,6 +504,7 @@ void ParseChartDrawingAlertText(std::string& line, std::string& SourceChartImage
 		}
 	}
 
+	
 	// MONOSPACE FORMATTING TO THE PRICE in HTML FORMAT
 	// Get Iterators to the Price (there are two prices in the alert text)
 	
@@ -620,71 +617,193 @@ void SCTelegramPostRequest(SCStudyInterfaceRef sc, const SCString& host, const S
 	}
 }
 
-/* std::string debug_request; */ 
-// This function performs a curl synchronous request to the inputted URL
-void CURLTelegramPostRequest(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption)
+std::string s_DebugResponse = "";
+void DebugResponse(SCStudyInterfaceRef sc)
 {
+	SCString msg;
+	if(s_DebugResponse != "")
+	{
+		msg.Format("RESPONSE: %s", s_DebugResponse.c_str());
+		sc.AddMessageToLog(msg,1);
+
+		s_DebugResponse = "";
+	}
+
+}
+// CURL Callback function to capture the response
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::stringstream* s)
+{
+    size_t totalSize = size * nmemb;
+    s->write(static_cast<char*>(contents), totalSize);
+    return totalSize;
+}
+
+// This function performs a curl synchronous request to the inputted URL
+void CURLTelegramPostRequest(const SCString& URL, const std::string& ChatID, const std::string& FilePath, const std::string& caption, SCStudyInterfaceRef sc)
+{
+	// timeout requests in case of failure to save file 
+	auto start = std::chrono::steady_clock::now();
+	int maxWaitTimeMillis = 20000;
+
+	// Logic to ensure the file is finished being saved before allowing the request to go through 
+	for(;;)
+	{
+		bool FileSavedSuccessfully = std::filesystem::exists(FilePath);
+		if(FileSavedSuccessfully)
+		{
+			auto FileSize = std::filesystem::file_size(FilePath); // get the file size 
+			Sleep(150); // quick pause 
+			for(;;)
+			{
+				if(std::filesystem::file_size(FilePath) > FileSize) // if the current file size is greater than the saved size 
+				{
+					/* std::cout << "File not finished being written!" << std::endl; */
+						
+					// update the file size 
+					FileSize = std::filesystem::file_size(FilePath);
+
+					// pause some time 
+					Sleep(100);
+
+					// loop again 
+					continue;
+				}
+				else
+				{
+					// file size was the same. should be finished writing 
+					/* std::cout << "File finished being written!" << std::endl; */
+					break;
+				}
+			}
+			break; // break outer loop once inner loop breaks 
+		}
+		else
+		{
+			/* std::cout << "File not finished being saved!" << std::endl; */
+			Sleep(200); // file not saved, wait for it to be saved 
+			
+			// if our clock has exceeded the timer, just timeout the request. 
+			auto elapsedMillis = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+			if (elapsedMillis > maxWaitTimeMillis) 
+			{
+				// debug 
+				/* std::cout << "Request timed out due to file not being saved successfully!" << std::endl; */
+				return ; // Timeout
+			}
+		}
+	}
+
+	// initialize curl 
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	CURL* curl = curl_easy_init();
 
+	// Updated to new mime interface: Wed Jul 31 16:54:31 EDT 2024
+	curl_mime *mime;
+	curl_mimepart *part;
+
+	// debug string 
+	std::stringstream responseStream;
+
 	if (curl) 
 	{
-		// Create a new form
-		struct curl_httppost* formpost = nullptr;
-		struct curl_httppost* lastptr = nullptr;
+		mime = curl_mime_init(curl);
 
-		// Add form fields (specific to telegram sendPhoto method)
-		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
-		"chat_id", CURLFORM_COPYCONTENTS, ChatID.c_str(), CURLFORM_END);
+		// add the chat ID 
+		part = curl_mime_addpart(mime);
+		curl_mime_data(part, ChatID.c_str(), CURL_ZERO_TERMINATED);
+		curl_mime_name(part, "chat_id");
 
 		// handle if there is a group subtopic ID in the Chat ID 
 		std::size_t ThreadIDPos = ChatID.find("_");
 		if(ThreadIDPos != std::string::npos)
 		{
 			const std::string MessageThreadID = ChatID.substr(ThreadIDPos + 1);
-			curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
-			"message_thread_id", CURLFORM_COPYCONTENTS, MessageThreadID.c_str(), CURLFORM_END);
-			// Note: Telegram Bot API Specifies INT type for this argument
-			// however since we are sending multipart form data everything is
-			// plain text so c_str() needs to be used. 
+
+			// add the message thread id 
+			part = curl_mime_addpart(mime);
+			curl_mime_data(part, MessageThreadID.c_str(), CURL_ZERO_TERMINATED);
+			curl_mime_name(part, "message_thread_id");
 		}
-		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
-		"photo", CURLFORM_FILE, FilePath.c_str(), CURLFORM_END);
-		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
-		"caption", CURLFORM_COPYCONTENTS, caption.c_str(), CURLFORM_END);
-		curl_formadd(&formpost, &lastptr, CURLFORM_COPYNAME, 
-		"parse_mode", CURLFORM_COPYCONTENTS, "HTML", CURLFORM_END);
+
+		// add the photo 
+		part = curl_mime_addpart(mime);
+		curl_mime_filedata(part, FilePath.c_str());
+		curl_mime_name(part, "photo");
+
+		// add the message caption (text)
+		part = curl_mime_addpart(mime);
+		curl_mime_data(part, caption.c_str(), CURL_ZERO_TERMINATED);
+		curl_mime_name(part, "caption");
+
+		// add the parse mode 
+		part = curl_mime_addpart(mime);
+		curl_mime_data(part, "HTML", CURL_ZERO_TERMINATED);
+		curl_mime_name(part, "parse_mode");
+
+		// debug: gives more curl output from the server 
+		/* curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); */
+
+		// Declare headers 
+        struct curl_slist *headers = nullptr;
+
+        // Initialize headers as needed
+        headers = curl_slist_append(headers, "Content-Type: multipart/form-data");
+        /* headers = curl_slist_append(headers, "Expect:");  // Disable 100-continue */
+
+		// set the headers 
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+		// set it as a mime post request
+		curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 
 		// Set the URL
 		curl_easy_setopt(curl, CURLOPT_URL, URL.GetChars());
 
-		// Set the form data
-		curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+		// Debug  
+		// Set the write function
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
 
-		// for debug 
-		/* // Pass a pointer to std::string variable to store the response */
-        /* curl_easy_setopt(curl, CURLOPT_WRITEDATA, &debug_request); */
+		// Pass a pointer to string variable to store the response
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseStream);
 
 		// Perform the HTTP POST request
 		CURLcode res = curl_easy_perform(curl);
+
+		// debug 
+        /* std::cout << "Response code: " << res << std::endl; */
+        /* std::cout << "Response: " << responseStream.str() << std::endl; */
 
 		// Check for errors
 		if (res != CURLE_OK) 
 		{
 			// debug if necessary 
-			// Append the libcurl error information to your string
 			/* debug_request = "Curl request failed: " + std::string(curl_easy_strerror(res)); */
+			/* msg.Format("CURL Request Error: %s", debug_request.c_str()); */
+			/* sc.AddMessageToLog(msg,1); */
+
+			/* s_DebugResponse = "CURL Request Failed: " + responseStream.str() + "\n"; */
+			s_DebugResponse = "CURL Request Failed: " +  std::string(curl_easy_strerror(res)) + "\n";
+			std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
+
+		}
+		else
+		{
+			s_DebugResponse = "CURL Request Success: " + responseStream.str() + "\n";
+
+			// Log the response
+            /* std::cout << "Response code: " << res << std::endl; */
+            /* std::cout << "Response: " << responseStream.str() << std::endl; */
 		}
 
 		// Clean up
-		curl_formfree(formpost);
 		curl_easy_cleanup(curl);
+		curl_mime_free(mime);
+		curl_global_cleanup();
 	}
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 {
-	// TODO: work on text formatting of chart drawing alerts 
 	// Study Inputs 
 	SCInputRef Input_Enabled = sc.Input[0];
 	SCInputRef Input_ChatID = sc.Input[1];
@@ -696,9 +815,10 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	SCInputRef Input_CustomFolderPath = sc.Input[7];
 	SCInputRef Input_FindDuplicateStudies = sc.Input[8];
 	SCInputRef Input_CustomizeMessageContent = sc.Input[9];
+	SCInputRef Input_Debug = sc.Input[10];
 
 	SCString msg; // logging object
-
+	
 	// Declare Necessary persistent variables
 	// These are items that need to be remembered between calls to the study function 
 	
@@ -751,7 +871,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 		"<br> <br> <strong><u>HOW TO SETUP AND USE THIS STUDY:</u></strong> "
 		"<br> <br> <strong><u>Step 1:</u></strong> "
-		"<br> <br> It is necessary to be running Sierra Chart Version <strong>2566</strong> or higher to use this study. "
+		"<br> <br> It is necessary to be running Sierra Chart Version <strong>2644</strong> or higher to use this study. "
 		"<br> <br> For this study to work it is necessary to <u>Enable</u> this setting in Sierra Chart:"
 		"<br> <span style=\"background-color: yellow; font-weight: bold;\">Global Settings >> Log >> Save Alerts Log to File</span>"
 
@@ -891,6 +1011,10 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		Input_CustomizeMessageContent.SetCustomInputIndex(0);
 		Input_CustomizeMessageContent.SetDescription("This setting allows the user to remove the alert formula, or only keep the Study Name in the Telegram message text for Chart/Study Alerts."); 
 
+		Input_Debug.Name = "Print CURL Request Response in Message Log";
+		Input_Debug.SetYesNo(0);
+		Input_Debug.SetDescription("This input is used to debug a http request by printing the reseponse to the SC Message log.");
+
 		// Persistent variable precaution 
 		if(FirstTimeStart != 0)
 		{
@@ -911,6 +1035,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
     	return;
 	} 
 
+
 	// Add support for Enabling and Disabling the study via the input
 	if(Input_Enabled.GetBoolean() == 0)
 	{
@@ -920,6 +1045,12 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		return; // the study is turned off
 	}
 
+	// Thu Jul 18 16:49:35 EDT 2024
+	// debug 
+	if(Input_Debug.GetBoolean() == 1)
+	{
+		DebugResponse(sc);
+	}
 
 	// Check for the Chat ID. 
 	if(strlen(Input_ChatID.GetString() ) == 0)
@@ -960,7 +1091,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		" It is necessary for you to use your own bot using the provided study input field.",1);
 		return; 
 
-		/* token = SCString("bot") + "your_bot_token"; */
+		token = SCString("bot") + "your_bot_token_here";
 
 	}
 
@@ -1186,7 +1317,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Call the HTTP POST Request in a separate thread. (not recommended for large scale operations)
 								// This function calls sendPhoto Telegram method
-								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
+								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line, std::ref(sc));
 
 								// detach the thread and it will finish on it's own. 
 								request_thread.detach();
@@ -1268,7 +1399,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 								// Call the HTTP POST Request in a separate thread. (not recommended for large scale operations)
 								// This function calls sendPhoto Telegram method
-								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
+								std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line, std::ref(sc));
 
 								// detach the thread and it will finish on it's own. 
 								request_thread.detach();
@@ -1451,7 +1582,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Call the HTTP POST Request in a separate thread. 
 											// (not recommended for large scale operations)
 											// This function calls sendPhoto Telegram method
-											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
+											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line, std::ref(sc));
 
 											// detach the thread and it will finish on it's own. 
 											request_thread.detach();
@@ -1539,7 +1670,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 											// Call the HTTP POST Request in a separate thread. 
 											// (not recommended for large scale operations)
 											// This function calls sendPhoto Telegram method
-											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line);
+											std::thread request_thread(CURLTelegramPostRequest, URL, ChatID, FilePath, line, std::ref(sc));
 
 											// detach the thread and it will finish on it's own. 
 											request_thread.detach();
@@ -1578,6 +1709,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 	if(sc.LastCallToFunction)
 	{
+		/* sc.AddMessageToLog("Last Call To Function!", 1); */
 		FirstTimeStart = 0;
 		LastModTime = 0; 
 		NumberOfLines = 0; 
