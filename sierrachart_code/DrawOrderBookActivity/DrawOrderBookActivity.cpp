@@ -7,8 +7,6 @@ SCSFExport scsf_DrawOrderBookActivity(SCStudyInterfaceRef sc)
 	int InputIndex = 0;
 	SCInputRef Input_ResetValueACSButtonNumber = sc.Input[InputIndex++];
 
-	/* SCSubgraphRef s_Display = sc.Subgraph[0]; */ 
-
 	SCSubgraphRef Subgraph_Open = sc.Subgraph[0];
 	SCSubgraphRef Subgraph_High = sc.Subgraph[1];
 	SCSubgraphRef Subgraph_Low = sc.Subgraph[2];
@@ -133,7 +131,7 @@ SCSFExport scsf_DrawOrderBookActivity(SCStudyInterfaceRef sc)
 		return;
 	}
 
-	// ACS BUTTON (may deprecate) 
+	// ACS BUTTON (for testing)
 	// Handle ACS Button events 
 	if(sc.MenuEventID != 0)
 	{
@@ -295,7 +293,5 @@ SCSFExport scsf_DrawOrderBookActivity(SCStudyInterfaceRef sc)
 	// Activie on the offer makes our output number go negative. 
 	//
 	// The goal of this study is to observe if activity on the bid/offer correlates
-	// to any consistent behaviour, also relative to methods we already use and
-	// understand
-	//
+	// to any consistent or interesting behaviour.
 }
