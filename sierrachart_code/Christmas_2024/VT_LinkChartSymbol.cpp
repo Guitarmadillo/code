@@ -10,7 +10,7 @@ SCSFExport scsf_LinkChartSymbol(SCStudyInterfaceRef sc)
 
 	if(sc.SetDefaults)
 	{
-		sc.GraphName = "Link Chart Symbol To Target Chart";
+		sc.GraphName = "Link Chart Symbol To Target Chart Symbol";
 		sc.ValueFormat = sc.BaseGraphValueFormat;
 		sc.GraphRegion = 0;
 		sc.AutoLoop		= 0;
