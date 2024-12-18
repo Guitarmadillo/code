@@ -126,8 +126,8 @@ SCSFExport scsf_LinkChartSymbol(SCStudyInterfaceRef sc)
 				// end the function here;
 				return;
 
-				// Part of the reason why we decided to handle it this way is because sc
-				// does not have an ACSIL function named sc.SetChartSymbol to set the symbol
+				// Part of the reason why we decided to handle it this way is because there
+				// is no ACSIL function yet named sc.SetChartSymbol() to set the symbol
 				// of another chart in the chartbook. 
 			}
 		}
