@@ -634,18 +634,16 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// The high lows should only be drawn once the function has iterated through all the bars 
 		// of a given day . 
 
+		
+		// for reset purposes later
+		double DefaultHighValue = -999999999999;
+		double DefaultLowValue = 999999999999;
+
+		// Arbitrary high and low start values, could probably do something
 		// arbitrary start values to ensure we can handle a wide variately of
 		// prices including negative priced markets.
-		
-		// Arbitrary high and low start values, could probably do something better but this works
-		// double DefaultHighValue = -999999999999;
-		// double DefaultLowValue = 999999999999;
-
-		// double Low = DefaultLowValue;
-		// double High = DefaultHighValue;
-
-		double Low = -999999999999;
-		double High = 999999999999;
+		double Low = DefaultLowValue;
+		double High = DefaultHighValue;
 
 		// remember the bar indexes 
 		int LowIndex = 0;
