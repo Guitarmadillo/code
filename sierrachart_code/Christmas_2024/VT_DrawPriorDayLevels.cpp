@@ -392,7 +392,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	if (sc.ChartIsDownloadingHistoricalData(sc.ChartNumber))
 	{
 		// sc.AddMessageToLog(
-		// 	"Chart is downloading historical data. Order evaluation not performed.", 1);
+		// 	"Chart is downloading historical data. Wait for it to finish.", 1);
 		return;
 	}
 
