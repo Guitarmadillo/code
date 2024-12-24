@@ -1,0 +1,68 @@
+This study was written by Christian at VerrilloTrading in December of 2024.
+
+This study shows prior day levels on the chart for a number of days going back. These levels include the session Open Close High Low, and additional levels like New York midnight price, EU open and close prices, and CME Globex close price.
+
+Please view this video for a demonstration on how to use this study: Holiday Gift For Sierra Chart Traders
+
+The levels that this study draws are drawn automatically when the study is added to the chart, or when any input setting is changed in the study. There is no need to use the redraw button that was mentioned in the video. This button may be deprecated and no longer in the study.
+
+The study will draw the Session Open and Session Close, which are controlled in Chart Settings > Session Times. The session High and Low are calculated using the highest and lowest prices for the day.
+
+The additional levels that this study draws or overnight levels that compliment and provide context to the NY Regular trading hours session. The times of these levels are hard coded in the study in UTC time and then converted to the Time Zone of the chart.
+
+KNOWN ISSUES WITH THE STUDY: 
+
+It is normal that dotted lines do not render on the screen correctly when running Sierra Chart on Linux through Wine. 
+
+So far I have only been testing on Crypto symbols which never close. Some additional logic is missing for CME group symbols. Right now it is normal if you see extra or incorrect high/low lines or other levels getting drawn at the beginning of the Sunday Open for some symbols, we are working on handling this in an update. 
+
+It is normal that the study does not draw new levels on the chart as they are being created, this will be added in a future update. The current way around it is to refresh the study by changing one of it's input settings. 
+
+It is normal that the study does not function properly with intraday storage time unit greater than 1 second, this will be resolved in a future update. 
+
+Suggestions Regarding The Chart Time Zone:
+
+It is recommended to set the Time Zone of your chart explicitly using Chart Settings > Session Times > Time Zone. As opposed to setting it to Use Global Time Zone. One reason for this is because when this setting is changed it automatically changes the session start and end times for the chart. Making it easier if you move to a different Time Zone and need to change the Session Times for the Chart. In addition to this I recommend linking the Session Time and Time Zone on any charts in your chartbook that use the same Session Times. This is controlled using Chart Settings > Linking > Chart Linking.
+
+Hide/Show Prior Day Levels:
+
+There is support for hiding the drawings that this study draws. This is done using the Input Setting named ACS Button To Hide Prior Day Levels to select which Advanced Custom Study button will be used to hide or show the drawings. By default they are always shown.
+
+Using Different Intraday Storage Time Units:
+
+Currently the study only supports using an intraday storage time unit of one tick or one second.
+
+The fix for this is in the process of being added to the study. Because we also use intraday storage time unit 2 seconds and above on a Sierra Chart instance running remotely only for the purpose of sending alerts, obtaining quotes or position updates.
+
+Steps to Ensure the CME Globex Close Price is Drawn:
+
+It is necessary to enable this setting: Chart Settings > Bar Period > Include Columns With No Data.
+
+It is also important that this setting remains in an off state: Chart Settings > Session Times > Apply Intra Day Session Times To Intraday Chart.
+
+Because or else every time the Intraday chart symbol is changed, the Session Times also get modified.
+
+New High/Low of Day Telegram Alerts:
+
+This study support sending a study alert when a new high or low price of day is made. We might also add the option of having a study alert trigger when the additional levels in the study are crossed.
+It is possible to forward these alerts directly to a Telegram chat using either the VerrilloTrading Telegram Chart Drawing Alerts study or using the built-in Sierra Chart method.
+
+General Notes:
+
+For the extra overnight levels to be drawn the user must enable the Evening Session using Chart Settings > Session Times > Use Evening Session and have their Evening Session times set correctly relative to their Day Session times.
+
+This study has only been tested with Denali Exchange Data Feed on Sierra Chart and not other Data feeds like IQFeed.
+
+If you encounter issues with the overnight prices not displaying, you can report this to support@verrillotrading.com. This study is open source and there will not be any free ongoing development of it, with the exception of a few items we still want to add. There is no guarantee we will be able to get to any support requests, or if we will consider additional feature requests.
+
+If you absolutely need an issue resolved or want to show gratitude for this work you can pay using this donation page:
+
+https://verrillotrading.com/tips
+
+I genuinely hope you enjoy the study,
+
+Good Trading,
+
+-Christian
+
+VerrilloTrading, Content Creator, Programmer
