@@ -900,7 +900,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						SessionClose.LineNumber = -1;  
 
 						SessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						SessionClose.LineWidth = 4;
+						SessionClose.LineWidth = i_SettlementPriceLineWidth.GetInt();
 						SessionClose.LineStyle = LINESTYLE_DASHDOTDOT;
 						SessionClose.DisplayHorizontalLineValue = 1;
 
@@ -993,7 +993,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						MidnightPrice.LineNumber = -1;  
 
 						MidnightPrice.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						MidnightPrice.LineWidth = 4;
+						MidnightPrice.LineWidth = i_MidnightPriceLineWidth.GetInt();
 						MidnightPrice.LineStyle = LINESTYLE_DASHDOTDOT;
 						MidnightPrice.DisplayHorizontalLineValue = 1;
 
@@ -1353,7 +1353,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						EUClose.LineNumber = -1;  
 
 						EUClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						EUClose.LineWidth = i_EuropeOpenLineWidth.GetInt();
+						EUClose.LineWidth = i_EuropeCloseLineWidth.GetInt();
 						EUClose.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeCloseLineStyle.GetIndex());
 						EUClose.DisplayHorizontalLineValue = 1;
 
