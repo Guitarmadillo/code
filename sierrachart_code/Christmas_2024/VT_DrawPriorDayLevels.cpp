@@ -77,6 +77,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 	// num days 
 	SCInputRef i_NumDaysToCalculateHighLow = sc.Input[InputIndex++];
+	SCInputRef i_DrawLevelsOnWeekend = sc.Input[InputIndex++];
 
 	// on off inputs 
 	SCInputRef i_DrawSessionOpen = sc.Input[InputIndex++];
@@ -144,6 +145,9 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		i_NumDaysToCalculateHighLow.SetInt(4);
 		i_NumDaysToCalculateHighLow.SetIntLimits(0,30);
 		i_NumDaysToCalculateHighLow.SetDescription("Controls the Number of Days Back the Study draws the Levels. A setting of 0 draws only for the current day.");
+
+		i_DrawLevelsOnWeekend.Name = "Keep Drawing Levels on Weekend (Crypto)";
+		i_DrawLevelsOnWeekend.SetYesNo(0);
 
 		// Session Open Time (Set in Chart Settings -> Session Times)
 		i_DrawSessionOpen.Name = "Draw Session Open Price";
@@ -396,14 +400,25 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		return;
 	}
 
-	// Persistent Variables 
-	double& LowOfDayMemory = sc.GetPersistentDoubleFast(0);
-	double& HighOfDayMemory = sc.GetPersistentDoubleFast(1);
-	int& LowOfDayLineNumberMemory = sc.GetPersistentIntFast(2);
-	int& HighOfDayLineNumberMemory = sc.GetPersistentIntFast(3);
+	// Used for remembering if the drawings are hidden 
+	int& HideLevels = sc.GetPersistentIntFast(1);
 
-	//Used for remembering if the drawings are hidden 
-	int& HideLevels = sc.GetPersistentIntFast(4);
+	// Other Persistent Variables 
+	// 
+	// These are used to remember the levels drawn in real-time 
+	// In order to not draw them again and also modify if necessary
+	//
+	double& LowOfDayMemory = sc.GetPersistentDoubleFast(2);
+	double& HighOfDayMemory = sc.GetPersistentDoubleFast(3);
+	int& LowOfDayLineNumberMemory = sc.GetPersistentIntFast(4);
+	int& HighOfDayLineNumberMemory = sc.GetPersistentIntFast(5);
+
+	int& SessionOpenLineNumberMemory = sc.GetPersistentIntFast(6);
+	int& SessionCloseLineNumberMemory = sc.GetPersistentIntFast(7);
+	int& CMECloseLineNumberMemory = sc.GetPersistentIntFast(8);
+	int& MidnightPriceLineNumberMemory = sc.GetPersistentIntFast(9);
+	int& EUOpenPriceLineNumberMemory = sc.GetPersistentIntFast(10);
+	int& EUClosePriceLineNumberMemory = sc.GetPersistentIntFast(11);
 
 	// logging object 
 	SCString msg;
@@ -411,14 +426,14 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	// Persistent Vector used to save what lines we have drawn, in order
 	// to ensure correct cleanup behaviour
     std::vector<int>* p_LineNumbers = reinterpret_cast<std::vector<int>*>
-		(sc.GetPersistentPointer(5));
+		(sc.GetPersistentPointer(0));
 
 	// First time initialization
     if (p_LineNumbers == NULL) 
 	{
         // array of structs to hold our CSV labels for each price
         p_LineNumbers = new std::vector<int>;
-        sc.SetPersistentPointer(5, p_LineNumbers);
+        sc.SetPersistentPointer(0, p_LineNumbers);
     }
     else 
 	{
@@ -432,7 +447,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		if(p_LineNumbers != 0)
 		{
 			delete p_LineNumbers;
-			sc.SetPersistentPointer(5, NULL);
+			sc.SetPersistentPointer(0, NULL);
 		}
 	}
 
@@ -452,13 +467,218 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			p_LineNumbers->clear();
 		}
 
+		// Reset Persistent Variables 
+		LowOfDayMemory = 0;
+		HighOfDayMemory = 0;
+		LowOfDayLineNumberMemory = 0;
+		HighOfDayLineNumberMemory = 0;
+
+		SessionOpenLineNumberMemory = 0;
+		SessionCloseLineNumberMemory = 0;
+		CMECloseLineNumberMemory = 0;
+		MidnightPriceLineNumberMemory = 0;
+		EUOpenPriceLineNumberMemory = 0;
+		EUClosePriceLineNumberMemory = 0;
 		return;
 	}
 
-	// Pressing this ACS Button will Draw or Delete and ReDraw all lines that
-	// this study drew
+	//-----------------------------------------------------------
+	// Set the Alert Only Once per Bar Option
+	sc.AlertOnlyOncePerBar = i_AlertOnlyOncePerBar.GetBoolean();
+	//-----------------------------------------------------------
+
+	// Get the last price for line positioning
+	double Last = sc.GetLastPriceForTrading();
+
+	// Obtain the session start and end times from the chart directly 
+	
+	// sc structure to store chart session times 
+	n_ACSIL::s_ChartSessionTimes r_ChartSessionTimes;
+
+	SCDateTime SessionStartTime; // Session Start 
+								 // 8AM currencies 
+								 //
+	SCDateTime SessionEndTime; // Session End,
+							   // 3pm ET for Currencies, and bonds
+							   // 4pm for Stocks
+	SCDateTime EveningStartTime;
+	SCDateTime EveningEndTime;
+
+	int UseEveningSessionTimes;
+	int NewBarAtSessionStart;
+	int LoadWeekendDataSetting;
+
+	if(sc.GetSessionTimesFromChart(sc.ChartNumber, r_ChartSessionTimes))
+	{
+		// Populate date time objects for session times 
+		SessionStartTime = r_ChartSessionTimes.StartTime;
+		SessionEndTime = r_ChartSessionTimes.EndTime;
+
+		EveningStartTime = r_ChartSessionTimes.EveningStartTime;
+		EveningEndTime = r_ChartSessionTimes.EveningEndTime;
+
+		// ints
+		UseEveningSessionTimes = r_ChartSessionTimes.UseEveningSessionTimes;
+		NewBarAtSessionStart = r_ChartSessionTimes.NewBarAtSessionStart;
+		LoadWeekendDataSetting = r_ChartSessionTimes.LoadWeekendDataSetting;
+	}
+
+	// This function is supposed to return the time of the chart so it
+	// adjusts to chart replay too.
+	SCDateTime CurrentTime = sc.GetCurrentDateTime();
+
+	int CurrentDay = CurrentTime.GetDate();
+
+	if(CurrentDay == 0)
+	{
+		// This resolves a glitch when using chart replay 
+		return;
+
+		// When doing a chart replay and the replay is paused and the button is
+		// pressed to go back a bar. the CurrentDay variable returns a 0 which
+		// represents 0 days from epoch. When this vlue is returned we just
+		// quit the study function until it returns a valid day number again. 
+		//
+		// Or else it results in many drawings being drawn incorrectly due to the Day being wrong.
+	}
+
+	//  we start by putting in those times in UTC time then converting them to the chart timezone 
 	//
-	// Also trigger a redraw if the input number of days was changed 
+	//  8:00 AM London Time = EU OPEN
+	//  16:30 PM London Time = EU CLose 
+	//
+	//	Right now UTC Time is same as london time 
+	//	This may change during daylight savings time 
+	//
+	//	22:00 PM UTC time = CME Futures Close 
+	//
+	// Set those specific times using either a sierra chart function or manually 
+	// convert the date time of the record in
+	
+	SCDateTime MidnightPriceTime, CMECloseTime, EUOpenTime, EUCloseTime;
+										   
+	MidnightPriceTime.SetDate(CurrentDay);
+	MidnightPriceTime.SetTimeHMS(5,0,0); // 5:00 AM UTC Time (05:00:00)
+											//
+	CMECloseTime.SetDate(CurrentDay);
+	CMECloseTime.SetTimeHMS(22,0,0); // 22:00 PM UTC Time 
+									 //
+	EUOpenTime.SetDate(CurrentDay);
+	EUOpenTime.SetTimeHMS(8,0,0); // 8:00 AM UTC Time 
+								  //
+	EUCloseTime.SetDate(CurrentDay);
+	EUCloseTime.SetTimeHMS(16,30,0); // 16:30 PM UTC Time  (15:59:59
+	
+	// UTC back to chart timezone 
+	SCDateTimeMS ConvertedMidnightPrice = 
+		sc.ConvertDateTimeToChartTimeZone(MidnightPriceTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedCMECloseTime = 
+		sc.ConvertDateTimeToChartTimeZone(CMECloseTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedEUOpenTime = 
+		sc.ConvertDateTimeToChartTimeZone(EUOpenTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedEUCloseTime = 
+		sc.ConvertDateTimeToChartTimeZone(EUCloseTime, TIMEZONE_UTC);
+
+	// Calculate the starting day for high/lows
+	int NumDaysToCalculateHighLow = i_NumDaysToCalculateHighLow.GetInt();
+
+	// get the start dates for calculation
+	int HighLowStartDate = CurrentDay - NumDaysToCalculateHighLow;
+	
+	// debug 
+	// msg.Format("Current Day: %d HighLow Start Date: %d NumDaysCalculateHighLow: %d", 
+	// CurrentDay, HighLowStartDate, NumDaysToCalculateHighLow);
+	// sc.AddMessageToLog(msg,1);
+
+	// Assign that day to SCDateTime variables so we can call the next function 
+	SCDateTime HighLowStartDateTime(HighLowStartDate,0);
+
+	// I will use this function start iterating from the correct bar index for each day 
+	int HighLowStartDateTimeIndex = 
+		sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowStartDateTime);
+
+	// DONE: Keep track of the day, when the day moves to the net day, stop
+	// redrawing the old high lows and start calculating for a new high low 
+	//
+	// The high lows should only be drawn once the function has iterated through all the bars 
+	// of a given day . 
+
+	// for reset purposes later
+	double DefaultHighValue = -999999999999;
+	double DefaultLowValue = 999999999999;
+
+	// Arbitrary high and low start values, could probably do something
+	// arbitrary start values to ensure we can handle a wide variately of
+	// prices including negative priced markets.
+	double Low = DefaultLowValue;
+	double High = DefaultHighValue;
+
+	// remember the bar indexes 
+	int LowIndex = 0;
+	int HighIndex = 0;
+
+	// SCDateTime Date (number of days since 1899) 
+	// used to determine if we need to be looking for open/close prices 
+	int CurrentBarDate;
+	int CurrentBarStartTime = 0;
+	int CurrentBarEndTime = 0;
+
+	// ---------------------------------------
+	// Session Open Time Setup 
+	// Get the Time in Seconds Number for Session Start  
+	int SessionStartTimeInSeconds = SessionStartTime.GetTimeInSeconds();
+	int LastDrawnOpenDate = 0; 
+	bool SessionOpenPriceDrawn = 0;
+	// -------------------------
+	//
+	// Session Close Time Setup 
+	//
+	// Get the Time in Seconds Number for Session End Time 
+	int SessionEndTimeInSeconds = SessionEndTime.GetTimeInSeconds();
+	int LastDrawnSessionCloseDate = 0; 
+	bool SessionClosePriceDrawn = 0;
+
+	// If session end time is set to 1 second before a stop of the hour, make it top of the hour,
+	// to greatly facilitate our drawings 
+	if (SessionEndTimeInSeconds % 100 == 99)
+	{
+		SessionEndTimeInSeconds++;
+	}
+
+	// -----------------------------------
+	// Midnight Price Setup
+	int MidnightPriceInSeconds = ConvertedMidnightPrice.GetTimeInSeconds();
+	int LastDrawnMidnightPriceDate = 0; 
+	bool MidnightPriceDrawn = 0;
+
+	//-------------------------------------
+	//  Same variables for CME Close Time 
+	int CMECloseTimeInSeconds = ConvertedCMECloseTime.GetTimeInSeconds();
+	int LastDrawnCMECloseDate = 0; 
+	bool CMEClosePriceDrawn = 0;
+	// ------------------------------------
+	//
+	//  Same Variables for EU Open time 
+	int EUOpenTimeInSeconds = ConvertedEUOpenTime.GetTimeInSeconds();
+	int LastDrawnEUOpenDate = 0; 
+	bool EUOpenPriceDrawn = 0;
+	// ------------------------------------
+
+	// Same Variables for EU Close time 
+	int EUCloseTimeInSeconds = ConvertedEUCloseTime.GetTimeInSeconds();
+	int LastDrawnEUCloseDate = 0; 
+	bool EUClosePriceDrawn = 0;
+	// ------------------------------------
+	
+	// Variable used for passing in line names for line labels 
+	SCString LineName = "";
+
+	// Pressing this ACS Button will Draw or Delete and Redraw all lines that
+	// this study drew
+	
 	if (sc.MenuEventID != 0 && sc.MenuEventID == i_ACSButtonToDrawLevels.GetInt()
 		|| p_LineNumbers->size() == 0)
 	{
@@ -473,278 +693,17 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// LOGIC FOR DELETE ALL DRAWINGS IN PERSISTENT VECTOR AND CLEAR VECTOR 
 		if(p_LineNumbers->size() != 0)
 		{
-			int NumDrawings = 0;
+			// int NumDrawings = 0;
 			for(int i = 0; i < p_LineNumbers->size(); i++)
 			{
 				sc.DeleteUserDrawnACSDrawing(sc.ChartNumber, (*p_LineNumbers)[i]);
-				NumDrawings++;
+				// NumDrawings++;
 			}
-
-			// debug 
-			// msg.Format("Num Drawings Deleted: %d",NumDrawings);
-			// sc.AddMessageToLog(msg,1);
 
 			// clear the vector 
 			p_LineNumbers->clear();
 		}
 
-		//-----------------------------------------------------------
-		// Set the Alert Only Once per Bar Option
-		sc.AlertOnlyOncePerBar = i_AlertOnlyOncePerBar.GetBoolean();
-		//-----------------------------------------------------------
-		//
-		// TODO: Handle the session times
-		int IntradayStorageTimeUnit = sc.IntradayDataStorageTimeUnit;
-
-		// msg.Format("Storage Time Unit: %d", IntradayStorageTimeUnit);
-		// sc.AddMessageToLog(msg,1);
-
-		// LOGIC FOR THE STUDY HERE 
-		// Get the last price for line positioning
-		double Last = sc.GetLastPriceForTrading();
-
-		// Obtain the session start and end times from the chart directly 
-		
-		// sc structure to store chart session times 
-		n_ACSIL::s_ChartSessionTimes r_ChartSessionTimes;
-
-		SCDateTime SessionStartTime; // Session Start 
-									 // 8AM currencies 
-									 //
-		SCDateTime SessionEndTime; // Session End,
-								   // 3pm ET for Currencies, and bonds
-								   // 4pm for Stocks
-		SCDateTime EveningStartTime;
-		SCDateTime EveningEndTime;
-
-		int UseEveningSessionTimes;
-		int NewBarAtSessionStart;
-		int LoadWeekendDataSetting;
-
-		if(sc.GetSessionTimesFromChart(sc.ChartNumber, r_ChartSessionTimes))
-		{
-			// Populate date time objects for session times 
-			SessionStartTime = r_ChartSessionTimes.StartTime;
-			SessionEndTime = r_ChartSessionTimes.EndTime;
-
-			EveningStartTime = r_ChartSessionTimes.EveningStartTime;
-			EveningEndTime = r_ChartSessionTimes.EveningEndTime;
-
-			// ints
-			UseEveningSessionTimes = r_ChartSessionTimes.UseEveningSessionTimes;
-			NewBarAtSessionStart = r_ChartSessionTimes.NewBarAtSessionStart;
-			LoadWeekendDataSetting = r_ChartSessionTimes.LoadWeekendDataSetting;
-		}
-
-		//  we start by putting in those times in UTC time then converting them to the chart timezone 
-		//
-		//  8:00 AM London Time = EU OPEN
-		//  16:30 PM London Time = EU CLose 
-		//
-		//	Right now UTC Time is same as london time 
-		//	This may change during daylight savings time 
-		//
-		//	22:00 PM UTC time = CME Futures Close 
-		//
-		// Set those specific times using either a sierra chart function or manually 
-		// convert the date time of the record in
-		
-		SCDateTime MidnightPriceTime, CMECloseTime, EUOpenTime, EUCloseTime;
-		// MidnightPriceTime.SetTimeHMS(4,59,59); // 5:00 AM UTC Time (4:59:59)
-											   //
-		// MidnightPriceTime.SetTimeHMS(00,00,00); // 5:00 AM UTC Time (4:59:59)
-		MidnightPriceTime.SetTimeHMS(5,0,0); // 5:00 AM UTC Time (05:00:00)
-												//
-		CMECloseTime.SetTimeHMS(22,0,0); // 22:00 PM UTC Time 
-		EUOpenTime.SetTimeHMS(8,0,0); // 8:00 AM UTC Time 
-									  //
-		// EUCloseTime.SetTimeHMS(15,59,59); // 16:30 PM UTC Time  (15:59:59
-		EUCloseTime.SetTimeHMS(16,30,0); // 16:30 PM UTC Time  (15:59:59
-		
-		// UTC back to chart timezone 
-		SCDateTimeMS ConvertedMidnightPrice = 
-			sc.ConvertDateTimeToChartTimeZone(MidnightPriceTime, TIMEZONE_UTC);
-
-		SCDateTimeMS ConvertedCMECloseTime = 
-			sc.ConvertDateTimeToChartTimeZone(CMECloseTime, TIMEZONE_UTC);
-
-		SCDateTimeMS ConvertedEUOpenTime = 
-			sc.ConvertDateTimeToChartTimeZone(EUOpenTime, TIMEZONE_UTC);
-
-		SCDateTimeMS ConvertedEUCloseTime = 
-			sc.ConvertDateTimeToChartTimeZone(EUCloseTime, TIMEZONE_UTC);
-
-		// Example Only: convert our date time to UTC if necessary
-		// ConvertedCheckDateTime = sc.ConvertDateTimeFromChartTimeZone(
-		// 	sc.BaseDateTimeIn[BarIndex], TIMEZONE_UTC);
-
-		// adjusted for real-time or if using chart replay 
-		// get the current day
-		// if(sc.isreplayrunning() == 1)
-		// {
-		// 	scdatetime currentdatetime;
-		// 	if (sc.isreplayrunning())
-		// 		currentdatetime = sc.currentdatetimeforreplay;
-		// 	else
-		// 		currentdatetime = sc.currentsystemdatetime;
-
-		// }
-		//
-		// This function is supposed to return the time of the chart so it
-		// adjusts to chart replay too.
-		SCDateTime CurrentTime = sc.GetCurrentDateTime();
-
-		int CurrentDay = CurrentTime.GetDate();
-
-		if(CurrentDay == 0)
-		{
-			// sc.AddMessageToLog("to solve a glitch with market replay",1);
-			return;
-
-			// When doing a chart replay and the replay is paused and the button is
-			// pressed to go back a bar. the CurrentDay variable returns a 0 which
-			// represents 0 days from epoch. When this vlue is returned we just
-			// quit the study function until it returns a valid day number again. 
-			//
-			// Or else it results in many drawings being drawn incorrectly due to the Day being wrong.
-
-		}
-
-		// Calculate the starting day for high/lows
-		int NumDaysToCalculateHighLow = i_NumDaysToCalculateHighLow.GetInt();
-
-		// get the start dates for calculation
-		int HighLowStartDate = CurrentDay - NumDaysToCalculateHighLow;
-		
-		// debug 
-		// msg.Format("Current Day: %d HighLow Start Date: %d NumDaysCalculateHighLow: %d", 
-		// CurrentDay, HighLowStartDate, NumDaysToCalculateHighLow);
-		// sc.AddMessageToLog(msg,1);
-
-		// Assign that day to SCDateTime variables so we can call the next function 
-		SCDateTime HighLowStartDateTime(HighLowStartDate,0);
-
-		// I will use this function start iterating from the correct bar index for each day 
-		int HighLowStartDateTimeIndex = 
-			sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowStartDateTime);
-
-		// DONE: Keep track of the day, when the day moves to the net day, stop
-		// redrawing the old high lows and start calculating for a new high low 
-		//
-		// The high lows should only be drawn once the function has iterated through all the bars 
-		// of a given day . 
-
-		
-		// for reset purposes later
-		double DefaultHighValue = -999999999999;
-		double DefaultLowValue = 999999999999;
-
-		// Arbitrary high and low start values, could probably do something
-		// arbitrary start values to ensure we can handle a wide variately of
-		// prices including negative priced markets.
-		double Low = DefaultLowValue;
-		double High = DefaultHighValue;
-
-		// remember the bar indexes 
-		int LowIndex = 0;
-		int HighIndex = 0;
-
-		// SCDateTime Date (number of days since 1899) 
-		// used to determine if we need to be looking for open/close prices 
-		int CurrentBarDate;
-		int CurrentBarStartTime = 0;
-		int CurrentBarEndTime = 0;
-
-		// ---------------------------------------
-		// Session Open Time Setup 
-		// Get the Time in Seconds Number for Session Start  
-		int SessionStartTimeInSeconds = SessionStartTime.GetTimeInSeconds();
-		int LastDrawnOpenDate = 0; 
-		bool SessionOpenPriceDrawn = 0;
-		// -------------------------
-		//
-		// Session Close Time Setup 
-		//
-		// Get the Time in Seconds Number for Session End Time 
-		int SessionEndTimeInSeconds = SessionEndTime.GetTimeInSeconds();
-		int LastDrawnSettlementDate = 0; 
-		bool SettlementPriceDrawn = 0;
-
-		// Experimental Feature only to see if we can handle Intraday Storage Time units greater than 1 second. 
-		// Still being developed
-		// Mon Dec 23 09:56:31 PM UTC 2024
-		if(IntradayStorageTimeUnit > 1) 
-		{
-			// Change to the session end time based on what the intraday storae time unit is set to. 
-			// This is because people typically use 59:59 as session end times as recommended by Sierra Chart.
-			// sc.AddMessageToLog("Storage Time unit greater than 1 second!",1);
-			if(IntradayStorageTimeUnit == 2)
-			{
-				SessionEndTimeInSeconds -= 1;
-			}
-			else if(IntradayStorageTimeUnit == 4)
-			{
-				SessionEndTimeInSeconds -= 3;
-			}
-			else if(IntradayStorageTimeUnit == 5)
-			{
-				SessionEndTimeInSeconds -= 4;
-			}
-			else if(IntradayStorageTimeUnit == 10)
-			{
-				SessionEndTimeInSeconds -= 9;
-			}
-			else if(IntradayStorageTimeUnit == 30)
-			{
-				SessionEndTimeInSeconds -= 29;
-			}
-			else if(IntradayStorageTimeUnit == 60)
-			{
-				SessionEndTimeInSeconds -= 59;
-			}
-		}
-		// -----------------------------
-
-		// Most people use session end times that end with the number 9.
-		// 15:59:59
-		// Thing is if the istuis is set higher than 1 second. that time no longer
-		// exists on the chart. 
-		//
-		// Midnight Price Setup
-		// 
-		// int MidnightPriceInSeconds = MidnightPriceTime.GetTimeInSeconds();
-		int MidnightPriceInSeconds = ConvertedMidnightPrice.GetTimeInSeconds();
-		int LastDrawnMidnightPriceDate = 0; 
-		bool MidnightPriceDrawn = 0;
-
-		//------------------------------------
-		//  Same variables for CME Close Time 
-		// 
-		int CMECloseTimeInSeconds = ConvertedCMECloseTime.GetTimeInSeconds();
-		int LastDrawnCMECloseDate = 0; 
-		bool CMEClosePriceDrawn = 0;
-		// ------------------------------------
-		//
-		//  Same Variables for EU Open time 
-		//
-		int EUOpenTimeInSeconds = ConvertedEUOpenTime.GetTimeInSeconds();
-		int LastDrawnEUOpenDate = 0; 
-		bool EUOpenPriceDrawn = 0;
-		// ------------------------------------
-
-		// Same Variables for EU Close time 
-		//
-		int EUCloseTimeInSeconds = ConvertedEUCloseTime.GetTimeInSeconds();
-		int LastDrawnEUCloseDate = 0; 
-		bool EUClosePriceDrawn = 0;
-		// ------------------------------------
-		
-		// msg.Format("EU Close: %d, EU Open: %d, CMEClose: %d, Midnight: %d",
-		// 	EUCloseTimeInSeconds, EUOpenTimeInSeconds, CMECloseTimeInSeconds, MidnightPriceInSeconds);
-		// sc.AddMessageToLog(msg,1);
-
-		// Variable used for passing in line names for line labels 
-		SCString LineName = "";
 
 		// Iterate from the starting point until end of the chart 
 		for(int Index = HighLowStartDateTimeIndex; Index < sc.ArraySize; Index++)
@@ -755,6 +714,21 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			// draw only one drawing per day 
 			if(CurrentBarDate > HighLowStartDate)
 			{
+				// Check input setting for draw on weekend
+				if(i_DrawLevelsOnWeekend.GetBoolean() == false)
+				{
+					// check if it is sunday 
+					if(sc.BaseDateTimeIn[Index].IsSunday() == 1
+						|| sc.BaseDateTimeIn[Index].IsSaturday() == 1)
+					{
+						// msg.Format("Is Sunday CurrentBarDate: %d", CurrentBarDate);
+						// sc.AddMessageToLog(msg,1);	
+
+						HighLowStartDate++;
+						continue;
+					}
+				}
+
 				// we are now on a new day 
 				//
 				// draw stuff and increment variables 
@@ -885,14 +859,9 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			CurrentBarStartTime = sc.BaseDateTimeIn.TimeAt(Index);
 			CurrentBarEndTime = sc.BaseDataEndDateTime.TimeAt(Index);
 
-
-			// important debug 
+			// useful debug 
 			// msg.Format("SessionEndTimeInSeconds: %d CurrentBarStartTime: %d CurrentBarEndTime: %d", 
 			// 	SessionEndTimeInSeconds, CurrentBarStartTime,CurrentBarEndTime);
-			// sc.AddMessageToLog(msg,1);
-
-			// msg.Format("CurrentBarStartTime: %d, CurrentBarEndTime: %d",
-			// 	CurrentBarStartTime, CurrentBarEndTime);
 			// sc.AddMessageToLog(msg,1);
 
 			// ----------------------------------------------------------------------
@@ -902,15 +871,15 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 				// if we are on a new day and settlement price has 
 				// been drawn, we need to reset this variable,
 				// so we can again be looking for the settlement price on the new day 
-				if(CurrentBarDate > LastDrawnSettlementDate && SettlementPriceDrawn == 1)
+				if(CurrentBarDate > LastDrawnSessionCloseDate && SessionClosePriceDrawn == 1)
 				{
-					SettlementPriceDrawn = 0;
-					// sc.AddMessageToLog("we get here reset SettlementPriceDrawn",1);
+					SessionClosePriceDrawn = 0;
+					// sc.AddMessageToLog("we get here reset SessionClosePriceDrawn",1);
 				}
 
 				// only looks for the settlemnt price if the settlement price 
 				// on the day has not already been drawn 
-				if(SettlementPriceDrawn == 0)
+				if(SessionClosePriceDrawn == 0)
 				{
 					// Check if Session End Time exists within the boundaries of our bar 
 					bool IsWithinBarTime = 
@@ -922,31 +891,31 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// we're on current settlement bar
 
 						// Draw it using our regular drawing tool 
-						s_UseTool SettlementLine;
+						s_UseTool SessionClose;
 
-						// SettlementLine.AddAsUserDrawnDrawing = 1;
-						SettlementLine.AllowCopyToOtherCharts = 1;
-						SettlementLine.AllowSaveToChartbook = 1;
-						SettlementLine.ChartNumber = sc.ChartNumber;
-						SettlementLine.LineNumber = -1;  
+						// SessionClose.AddAsUserDrawnDrawing = 1;
+						SessionClose.AllowCopyToOtherCharts = 1;
+						SessionClose.AllowSaveToChartbook = 1;
+						SessionClose.ChartNumber = sc.ChartNumber;
+						SessionClose.LineNumber = -1;  
 
-						SettlementLine.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						SettlementLine.LineWidth = 4;
-						SettlementLine.LineStyle = LINESTYLE_DASHDOTDOT;
-						SettlementLine.DisplayHorizontalLineValue = 1;
+						SessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						SessionClose.LineWidth = 4;
+						SessionClose.LineStyle = LINESTYLE_DASHDOTDOT;
+						SessionClose.DisplayHorizontalLineValue = 1;
 
 						// Price Value 
-						SettlementLine.BeginValue = sc.Close[Index];
-						SettlementLine.EndValue = SettlementLine.BeginValue;
+						SessionClose.BeginValue = sc.Open[Index];
+						SessionClose.EndValue = SessionClose.BeginValue;
 
 						// GET BAR INDEX 
-						SettlementLine.BeginIndex = Index;
-						SettlementLine.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+						SessionClose.BeginIndex = Index -1;
+						SessionClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
-						SettlementLine.AddMethod = UTAM_ADD_OR_ADJUST;
-						SettlementLine.Region = sc.GraphRegion;
+						SessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
+						SessionClose.Region = sc.GraphRegion;
 
-						SettlementLine.Color = i_SettlementPriceColor.GetColor();
+						SessionClose.Color = i_SettlementPriceColor.GetColor();
 
 						// Code used for Fixing Line Labels 
 						
@@ -961,16 +930,28 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						LineName = "";
 
 						// Call fix line labels 
-						VT_FixLineLabels(Month, Day, SettlementLine, msg, Last, LineName);
+						VT_FixLineLabels(Month, Day, SessionClose, msg, Last, LineName);
 
-						sc.UseTool(SettlementLine);
-						p_LineNumbers->push_back(SettlementLine.LineNumber);
+						sc.UseTool(SessionClose);
+						p_LineNumbers->push_back(SessionClose.LineNumber);
 
 						//-----------------------------------
 						// ESSENTIAL RESET VARIABLES 
 						// Set variables to ensure we only get here again on the next day 
-						LastDrawnSettlementDate = sc.BaseDateTimeIn[Index].GetDate();
-						SettlementPriceDrawn = 1;
+						LastDrawnSessionCloseDate = sc.BaseDateTimeIn[Index].GetDate();
+						SessionClosePriceDrawn = 1;
+
+
+						// if this drawing is on the current day
+						if(CurrentDay == DrawingStartDate && SessionEndTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day
+							// therefore we should remember its line number 
+							// This is to inform the real-time code that the
+							// drawing has already been drawn. 
+
+							SessionCloseLineNumberMemory = SessionClose.LineNumber;
+						}
 					}
 					//----------------------------
 					// End Settlement Price Logic 
@@ -986,6 +967,10 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 					MidnightPriceDrawn = 0;
 				}
 
+				// msg.Format("MidnightPriceInSeconds: %d, CurrentBarStartTime: %d, CurrentBarEndTime: %d",
+				// 	MidnightPriceInSeconds, CurrentBarStartTime, CurrentBarEndTime);
+				// sc.AddMessageToLog(msg,1);
+
 				// only looks to draw midnight price if the midnight price 
 				// on the day has not already been drawn 
 				if(MidnightPriceDrawn == 0)
@@ -997,9 +982,6 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Go back a bar and draw the midnight price
 						//
 						// Debug 
-						// msg.Format("MidnightPriceInSeconds: %d, CurrentBarStartTime: %d, CurrentBarEndTime: %d",
-						// 	MidnightPriceInSeconds, CurrentBarStartTime, CurrentBarEndTime);
-						// sc.AddMessageToLog(msg,1);
 
 						// Draw it using our regular drawing tool 
 						s_UseTool MidnightPrice;
@@ -1054,6 +1036,20 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Set variables to ensure we only get here again on the next day 
 						LastDrawnMidnightPriceDate = sc.BaseDateTimeIn[Index].GetDate();
 						MidnightPriceDrawn = 1;
+
+						// NOTE: The second condition here adds support for users that have timezone
+						// set differeant than NY time. Because in NY time the
+						// Midnight time in seconds in 0 therefore it is a new day
+						// already so the real-time code below can handle the drawing.
+						//
+						// In other timezones MidnightPriceinSeconds will not be 0 therefore
+						// this will be the way of handling it. 
+						if(CurrentDay == DrawingStartDate && MidnightPriceInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+							MidnightPriceLineNumberMemory = MidnightPrice.LineNumber;
+						}
 					}
 				}
 			}
@@ -1097,7 +1093,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						SessionOpen.DisplayHorizontalLineValue = 1;
 
 						// Price Value 
-						SessionOpen.BeginValue = sc.Close[Index];
+						SessionOpen.BeginValue = sc.Open[Index];
 						SessionOpen.EndValue = SessionOpen.BeginValue;
 
 						// GET BAR INDEX 
@@ -1132,6 +1128,15 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Set variables to ensure we only get here again on the next day 
 						LastDrawnOpenDate = sc.BaseDateTimeIn[Index].GetDate();
 						SessionOpenPriceDrawn = 1;
+
+						// if this drawing is on the current day
+						if(CurrentDay == DrawingStartDate && SessionStartTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							SessionOpenLineNumberMemory = SessionOpen.LineNumber;
+						}
 					}
 				}
 			}
@@ -1147,7 +1152,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 				// only looks for the openprice if the open price 
 				// on the day has not already been drawn 
-				if(CMEClosePriceDrawn == 0)
+				if(CMEClosePriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSunday() != 1
+					&& sc.BaseDateTimeIn[Index].IsSaturday() != 1)
 				{
 					// Check if Session End Time exists within the boundaries of our bar 
 					bool IsWithinBarTime = 
@@ -1205,14 +1211,24 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Call fix line labels 
 						VT_FixLineLabels(Month, Day, CMESessionClose, msg, Last, LineName);
 
+						// draw it 
 						sc.UseTool(CMESessionClose);
+
+						// remember line number 
 						p_LineNumbers->push_back(CMESessionClose.LineNumber);
 
-						//-----------------------------------
 						// ESSENTIAL RESET VARIABLES 
 						// Set variables to ensure we only get here again on the next day 
 						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
 						CMEClosePriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && CMECloseTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							CMECloseLineNumberMemory = CMESessionClose.LineNumber;
+						}
 					}
 				}
 			}
@@ -1255,7 +1271,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						EUOpen.DisplayHorizontalLineValue = 1;
 
 						// Price Value 
-						EUOpen.BeginValue = sc.Open[Index];
+						EUOpen.BeginValue = sc.Close[Index-1];
 						EUOpen.EndValue = EUOpen.BeginValue;
 
 						// GET BAR INDEX 
@@ -1282,7 +1298,10 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Call fix line labels 
 						VT_FixLineLabels(Month, Day, EUOpen, msg, Last, LineName);
 
+						// draw it 
 						sc.UseTool(EUOpen);
+
+						// remember line number 
 						p_LineNumbers->push_back(EUOpen.LineNumber);
 
 						//-----------------------------------
@@ -1290,6 +1309,13 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Set variables to ensure we only get here again on the next day 
 						LastDrawnEUOpenDate = sc.BaseDateTimeIn[Index].GetDate();
 						EUOpenPriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && EUOpenTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+							EUOpenPriceLineNumberMemory = EUOpen.LineNumber;
+						}
 					}
 				}
 			}
@@ -1359,7 +1385,10 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Call fix line labels 
 						VT_FixLineLabels(Month, Day, EUClose, msg, Last, LineName);
 
+						// draw it 
 						sc.UseTool(EUClose);
+
+						// remember line number 
 						p_LineNumbers->push_back(EUClose.LineNumber);
 
 						//-----------------------------------
@@ -1368,6 +1397,14 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// LastDrawnEUCloseDate = sc.BaseDateTimeIn[Index].GetDate();
 						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
 						EUClosePriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && EUCloseTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							EUClosePriceLineNumberMemory = EUClose.LineNumber;
+						}
 					}
 				}
 			}
@@ -1422,7 +1459,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		DrawingStartDate.GetDateYMD(Year,Month,Day);
 
 		// Assign the line name for this drawing and pass to function
-		LineName = "Low";
+		LineName = "L";
 
 		// Call fix line labels 
 		VT_FixLineLabels(Month, Day, LowOfDay, msg, Last,  LineName);
@@ -1471,7 +1508,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		DrawingStartDate.GetDateYMD(Year,Month,Day);
 
 		// Assign the line name for this drawing and pass to function
-		LineName = "High";
+		LineName = "H";
 
 		// Call fix line labels 
 		VT_FixLineLabels(Month, Day, HighOfDay, msg, Last, LineName);
@@ -1488,6 +1525,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	}
 	// End ACS Button press 
 
+	// START REALTIME LOGIC 
 	// check for new low of day 
 	if(sc.Low[sc.ArraySize-1] < LowOfDayMemory)
 	{
@@ -1511,6 +1549,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 		// draw 
 		sc.UseTool(LowOfDay);
+
+		// if alerts are enabled 
 		if(i_EnableNewHighLowAlert.GetBoolean())
 		{
 			// Get the current chart symbol for alert text 
@@ -1545,6 +1585,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 		// draw
 		sc.UseTool(HighOfDay);
+
+		// if alerts are enabled 
 		if(i_EnableNewHighLowAlert.GetBoolean())
 		{
 			// Get the current chart symbol for alert text 
@@ -1557,6 +1599,379 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			// Create New High of day alert 
 			sc.SetAlert(i_AlertNumberForHighLowAlert.GetInt(), 
 				sc.ArraySize-1, std::move(AlertText)); 
+		}
+	}
+
+	// TODO: Write alert functionality for the extra levels
+	// If we reclaim prior day high or low, midnight price etc. 
+	//
+	// We can iterate through all saved levels in vector and compare which are
+	// closest to last price and monitor those.
+	//
+	// --------------------------------------------------------------------------------
+	// Draw real-time session open close levels as they happen 
+	
+	// Get Most recent bar start and end time 
+	CurrentBarStartTime = sc.BaseDateTimeIn.TimeAt(sc.ArraySize-1);
+	CurrentBarEndTime = sc.BaseDataEndDateTime.TimeAt(sc.ArraySize-1);
+
+	// Input enabled and logic to determine if we are on the right bar 
+	if(i_DrawSessionOpen.GetBoolean() && 
+		CurrentBarStartTime == SessionStartTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(SessionOpenLineNumberMemory == 0)
+		{
+			// Draw the session open price 
+			s_UseTool SessionOpen;
+
+			// SessionOpen.AddAsUserDrawnDrawing = 1;
+			SessionOpen.AllowCopyToOtherCharts = 1;
+			SessionOpen.AllowSaveToChartbook = 1;
+			SessionOpen.ChartNumber = sc.ChartNumber;
+			SessionOpen.LineNumber = -1;  
+
+			SessionOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+
+			SessionOpen.LineWidth = i_SessionOpenLineWidth.GetInt();
+			SessionOpen.LineStyle = static_cast<SubgraphLineStyles>(i_SessionOpenLineStyle.GetIndex());
+			SessionOpen.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			SessionOpen.BeginValue = sc.Open[sc.ArraySize-1];
+			SessionOpen.EndValue = SessionOpen.BeginValue;
+
+			// GET BAR INDEX 
+			SessionOpen.BeginIndex = sc.ArraySize-1;
+			SessionOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			SessionOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+			SessionOpen.Region = sc.GraphRegion;
+
+			SessionOpen.Color = i_SessionOpenColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, SessionOpen, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(SessionOpen);
+
+			// remember in vector 
+			p_LineNumbers->push_back(SessionOpen.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			SessionOpenLineNumberMemory = SessionOpen.LineNumber;
+		}
+	}
+
+	// Input enabled and logic to determine if we are on the right bar 
+	if(i_DrawSessionClose.GetBoolean() && 
+		CurrentBarStartTime == SessionEndTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(SessionCloseLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool SessionClose;
+
+			// SessionClose.AddAsUserDrawnDrawing = 1;
+			SessionClose.AllowCopyToOtherCharts = 1;
+			SessionClose.AllowSaveToChartbook = 1;
+			SessionClose.ChartNumber = sc.ChartNumber;
+			SessionClose.LineNumber = -1;  
+
+			SessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			SessionClose.LineWidth = 4;
+			SessionClose.LineStyle = LINESTYLE_DASHDOTDOT;
+			SessionClose.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			SessionClose.BeginValue = sc.Open[sc.ArraySize-1];
+			SessionClose.EndValue = SessionClose.BeginValue;
+
+			// GET BAR INDEX 
+			SessionClose.BeginIndex = sc.ArraySize-2;
+			SessionClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			SessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
+			SessionClose.Region = sc.GraphRegion;
+
+			SessionClose.Color = i_SettlementPriceColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, SessionClose, msg, Last, LineName);
+
+			sc.UseTool(SessionClose);
+			p_LineNumbers->push_back(SessionClose.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			SessionCloseLineNumberMemory = SessionClose.LineNumber;
+		}
+	}
+
+	if(i_DrawMidnightPrice.GetBoolean() && 
+		CurrentBarStartTime == MidnightPriceInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(MidnightPriceLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool MidnightPrice;
+
+			// MidnightPrice.AddAsUserDrawnDrawing = 1;
+			MidnightPrice.AllowCopyToOtherCharts = 1;
+			MidnightPrice.AllowSaveToChartbook = 1;
+			MidnightPrice.ChartNumber = sc.ChartNumber;
+			MidnightPrice.LineNumber = -1;  
+
+			MidnightPrice.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			MidnightPrice.LineWidth = 4;
+			MidnightPrice.LineStyle = LINESTYLE_DASHDOTDOT;
+			MidnightPrice.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			// set value to be close of the previous bar 
+			MidnightPrice.BeginValue = sc.Close[sc.ArraySize-2];
+
+			// set end value to the beginning value 
+			MidnightPrice.EndValue = MidnightPrice.BeginValue;
+
+			// GET BAR INDEX 
+			MidnightPrice.BeginIndex = sc.ArraySize-1;
+			MidnightPrice.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			MidnightPrice.AddMethod = UTAM_ADD_OR_ADJUST;
+			MidnightPrice.Region = sc.GraphRegion;
+
+			MidnightPrice.Color = i_MidnightPriceColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, MidnightPrice, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(MidnightPrice);
+
+			// remember line number 
+			p_LineNumbers->push_back(MidnightPrice.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			MidnightPriceLineNumberMemory = MidnightPrice.LineNumber;
+		}
+	}
+	
+	// May need different logic for this time 
+	// Note: This functions on most symbols but not CME Futures symbols where
+	// the market close is 5pm. When the market re opens, simply recalculate
+	// the chart and the historical drawing code will handle the drawing of
+	// this level. 
+	if(i_DrawGlobexClose.GetBoolean() && 
+		CurrentBarStartTime == CMECloseTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(CMECloseLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool CMESessionClose;
+
+			// CMESessionClose.AddAsUserDrawnDrawing = 1;
+			CMESessionClose.AllowCopyToOtherCharts = 1;
+			CMESessionClose.AllowSaveToChartbook = 1;
+			CMESessionClose.ChartNumber = sc.ChartNumber;
+			CMESessionClose.LineNumber = -1;  
+
+			CMESessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			CMESessionClose.LineWidth = i_GlobexClosePriceLineWidth.GetInt();
+			CMESessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_GlobexClosePriceLineStyle.GetIndex());
+			CMESessionClose.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			CMESessionClose.BeginValue = sc.Close[sc.ArraySize-2];
+			CMESessionClose.EndValue = CMESessionClose.BeginValue;
+
+			// GET BAR INDEX 
+			CMESessionClose.BeginIndex = sc.ArraySize-2;
+			CMESessionClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			CMESessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
+			CMESessionClose.Region = sc.GraphRegion;
+
+			CMESessionClose.Color = i_GlobexClosePriceColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, CMESessionClose, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(CMESessionClose);
+
+			// remember line number 
+			p_LineNumbers->push_back(CMESessionClose.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			CMECloseLineNumberMemory = CMESessionClose.LineNumber;
+		}
+	}
+
+	if(i_DrawEuropeOpen.GetBoolean() && 
+		CurrentBarStartTime == EUOpenTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(EUOpenPriceLineNumberMemory == 0)
+		{
+			s_UseTool EUOpen;
+
+			// EUOpen.AddAsUserDrawnDrawing = 1;
+			EUOpen.AllowCopyToOtherCharts = 1;
+			EUOpen.AllowSaveToChartbook = 1;
+			EUOpen.ChartNumber = sc.ChartNumber;
+			EUOpen.LineNumber = -1;  
+
+			EUOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			EUOpen.LineWidth = i_EuropeOpenLineWidth.GetInt();
+			EUOpen.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeOpenLineStyle.GetIndex());
+			EUOpen.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			EUOpen.BeginValue = sc.Close[sc.ArraySize-2];
+			EUOpen.EndValue = EUOpen.BeginValue;
+
+			// GET BAR INDEX 
+			EUOpen.BeginIndex = sc.ArraySize-2;
+			EUOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			EUOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+			EUOpen.Region = sc.GraphRegion;
+
+			EUOpen.Color = i_EuropeOpenColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, EUOpen, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(EUOpen);
+
+			// remember line number 
+			p_LineNumbers->push_back(EUOpen.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			EUOpenPriceLineNumberMemory = EUOpen.LineNumber;
+		}
+	}
+
+	if(i_DrawEuropeClose.GetBoolean() && 
+		CurrentBarStartTime == EUCloseTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(EUClosePriceLineNumberMemory == 0)
+		{
+			s_UseTool EUClose;
+
+			// EUClose.AddAsUserDrawnDrawing = 1;
+			EUClose.AllowCopyToOtherCharts = 1;
+			EUClose.AllowSaveToChartbook = 1;
+			EUClose.ChartNumber = sc.ChartNumber;
+			EUClose.LineNumber = -1;  
+
+			EUClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			EUClose.LineWidth = i_EuropeOpenLineWidth.GetInt();
+			EUClose.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeCloseLineStyle.GetIndex());
+			EUClose.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			EUClose.BeginValue = sc.Open[sc.ArraySize-1];
+			EUClose.EndValue = EUClose.BeginValue;
+
+			// GET BAR INDEX 
+			EUClose.BeginIndex = sc.ArraySize-1;
+			EUClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			EUClose.AddMethod = UTAM_ADD_OR_ADJUST;
+			EUClose.Region = sc.GraphRegion;
+
+			EUClose.Color = i_EuropeCloseColor.GetColor();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, EUClose, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(EUClose);
+
+			// remember line number 
+			p_LineNumbers->push_back(EUClose.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			EUClosePriceLineNumberMemory = EUClose.LineNumber;
 		}
 	}
 
