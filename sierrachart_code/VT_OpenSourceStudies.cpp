@@ -6,19 +6,54 @@
 #include <thread>
 #include "json.hpp" // convenience 
 					//
+#include "VT_SCHelpers.h"
 #include "sierrachart.h"
+
+// This code is free to use and study for all Sierra Chart users
+//
+// Please consider supporting this work with a one time donation 
+// https://verrillotrading.com/tips
+//
+// or simply by sending a thank you email to support@verrillotrading.com
+//
+// Consider getting added to our list of SC Study users, 
+// https://verrillotrading.com/sc-open-source-studies-access
+//
+// Be first to know when new updates or services are released 
+// including first priority support in the case of any issues that are found. 
+//
+// The version of this code is for github and does not recieve updates as
+// frequently as the code on our local repository. 
+//
+// Compiling this file requires that you install and include curl and any other
+// libraries that are included. 
+//
+// Some helper functions may be defined in these studies that are defined in a
+// different source/header pair, these additional helpers are not open source. 
+//
+// To obtain access to these studies immediately, use this page:
+// https://verrillotrading.com/sc-open-source-studies-access
+//
+// Kind regards, 
+//
+// - Christian
+// VerrilloTrading, Content Creator - Developer
+// support@verrillotrading.com
+//
+// Wed Aug 19 01:04:52 PM EDT 2026
+int ver = 94;
 
 SCDLLName("VerrilloTrading - Open Source Studies")
 SCSFExport scsf_LinkChartSymbol(SCStudyInterfaceRef sc)
 {
-	//
 	// -------------------------------------------------------------------------
 	int InputIndex = 0;
 	SCInputRef i_ChartNumberToMonitor = sc.Input[InputIndex++];
 
 	if(sc.SetDefaults)
 	{
-		sc.GraphName = "Link Chart Symbol To Target Chart Symbol";
+		std::string StudyGraphName = "Helpers: Link Chart Symbol To Target Chart Symbol | v" + std::to_string(ver) + " |";
+		sc.GraphName = StudyGraphName.c_str();
 		sc.ValueFormat = sc.BaseGraphValueFormat;
 		sc.GraphRegion = 0;
 		sc.AutoLoop		= 0;
@@ -91,6 +126,14 @@ SCSFExport scsf_LinkChartSymbol(SCStudyInterfaceRef sc)
 		i_ChartNumberToMonitor.SetDescription("Set this to the Chart Number that will be monitored for a Symbol change");
 	}
 
+	if(sc.IsUserAllowedForSCDLLName == false)
+	{
+		if(sc.Index == 0)
+		{
+		  sc.AddMessageToLog("You are not allowed to use this study. Please contact support@verrillotrading.com to obtain free access.",1);
+		}
+    	return;
+	} 
 	// logging object 
 	SCString msg; 
 
@@ -182,143 +225,317 @@ SCSFExport scsf_LinkChartSymbol(SCStudyInterfaceRef sc)
 		return;
 	}
 }
-void VT_FixLineLabels(int& Month, int& Day, s_UseTool& Tool, SCString& msg, double& Last, SCString& LevelName)
+std::vector<int> FindDuplicateStudiesInSameChartbook_V2(SCStudyInterfaceRef sc, const char* StudyName, SCString& msg)
 {
-	// This logic is from Clean Line Labels study to format the text string with the date
-	// time from when the line originates from.
-	if(Month < 10 && Day < 10 && Tool.Text.GetSubString(3,0) != msg.Format("%d-%d",Month,Day) )
-	{
-		// set the text formatting and transparent label background
-		Tool.Text.Format("%d-%d %s",Month,Day, LevelName.GetChars());
-		Tool.TransparentLabelBackground = 0;
+	// same as FindDuplicateStudyiesInSameChartbook except returns a vector
+	// containing the chart numbers where that study exists 
+	//
+	// Get the highest chart number in the current chartbook 
+	int highest_chart_num = sc.GetHighestChartNumberUsedInChartBook();
 
-		// Logic for Text Alignment
-		// line is less than price value
-		if(Tool.BeginValue < Last && Tool.TextAlignment != 8 )
-		{
-			Tool.TextAlignment = DT_BOTTOM | DT_LEFT;
-		}
-		// line is above price
-		else if(Tool.BeginValue > Last && Tool.TextAlignment != 0 )
-		{
-			Tool.TextAlignment = DT_TOP | DT_LEFT;
-		} 	
-	}
-	else if(Month < 10 && Day >= 10 && Tool.Text.GetSubString(4,0) != msg.Format("%d-%d",Month,Day) )
-	{
-		Tool.Text.Format("%d-%d %s",Month,Day, LevelName.GetChars());
-		Tool.TransparentLabelBackground = 0;
-		// line is less than price value
-		if(Tool.BeginValue < Last && Tool.TextAlignment != 8 )
-		{
-			Tool.TextAlignment = DT_BOTTOM | DT_LEFT;
-		}
-		// line is above price
-		else if(Tool.BeginValue > Last && Tool.TextAlignment != 0 )
-		{
-			Tool.TextAlignment = DT_TOP | DT_LEFT;
-		} 	
-	}
-	else if(Month >= 10 && Day < 10 && Tool.Text.GetSubString(4,0) != msg.Format("%d-%d",Month,Day) )
-	{
-		Tool.Text.Format("%d-%d %s",Month,Day, LevelName.GetChars());
-		Tool.TransparentLabelBackground = 0;
+	// get the current chart number for reference
+	int this_chart_num = sc.ChartNumber;
 
-		// line is less than price value
-		if(Tool.BeginValue < Last && Tool.TextAlignment != 8 )
-		{
-			Tool.TextAlignment = DT_BOTTOM | DT_LEFT;
-		}
-		// line is above price
-		else if(Tool.BeginValue > Last && Tool.TextAlignment != 0 )
-		{
-			Tool.TextAlignment = DT_TOP | DT_LEFT;
-		} 	
-	}
-	else if(Month >= 10 && Day >= 10 && Tool.Text.GetSubString(5,0) != msg.Format("%d-%d",Month,Day) )
-	{
-		Tool.Text.Format("%d-%d %s",Month,Day, LevelName.GetChars());
-		Tool.TransparentLabelBackground = 0;
+	// vector used to save the chart numbers of charts in current chartbook
+	std::vector <int> chart_numbers;
 
-		// line is less than price value
-		if(Tool.BeginValue < Last && Tool.TextAlignment != 8 )
+	// Go through each chart number from 1 to highest chart number to 
+	// determine the chart numbers that exist and save those. 
+	for(int ChartNumber = 1; ChartNumber <= highest_chart_num; ChartNumber++)
+	{
+		// returns true if chart number exists in current chartbook, empty string refers to current chartbook
+		if(sc.IsChartNumberExist(ChartNumber, ""))
 		{
-			Tool.TextAlignment = DT_BOTTOM | DT_LEFT;
+			// add this chart number to the vector 
+			chart_numbers.push_back(ChartNumber);
 		}
-		// line is above price
-		else if(Tool.BeginValue > Last && Tool.TextAlignment != 0 )
+	}	
+
+	// vector used to save the chart numbers where we find instances of the study 
+	std::vector <int> chart_numbers_where_study_is_found;
+	
+	// iterate through the existing number of charts with chart numbers as values  
+	for(int i = 0; i < chart_numbers.size(); i++)
+	{
+		// Check if the study with this name is found on this chart number
+		// arguments: (chart number, study name as a string, search for study short name instead)
+		int is_study_found = sc.GetStudyIDByName(chart_numbers[i], StudyName, 0);
+
+		// If the study is found and if the chart it was found on is not the current chart
+		if(is_study_found != 0 && chart_numbers[i] != this_chart_num)
 		{
-			Tool.TextAlignment = DT_TOP | DT_LEFT;
-		} 	
+			chart_numbers_where_study_is_found.push_back(chart_numbers[i]);
+			// This should only return true if the study exists on two or more chartbooks
+			// print which charts where the study is found
+			// msg.Format("A duplicate is found on chart #%d. Reduce the number of studies "
+			// "per chartbook to one unless you wish to recieve duplicate alerts.", chart_numbers[i]);
+			// sc.AddMessageToLog(msg,1);
+		}
 	}
+
+	// the scope calling this function will check the size of the returned vector
+	return chart_numbers_where_study_is_found;
 }
 SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 {
-	int InputIndex = 1;
+	int InputIndex = 0;
+
+	// In order to detect input changes made by other instances of Prior Day Levels within the same chartbook
+	// we need to save the input index of each study input. 
 
 	// num days 
-	SCInputRef i_NumDaysToCalculateHighLow = sc.Input[InputIndex++];
-	SCInputRef i_DrawLevelsOnWeekend = sc.Input[InputIndex++];
+	int NumDaysInputIndex = InputIndex;
+	SCInputRef i_NumDaysToCalculate = sc.Input[InputIndex++];
+
+	// Draw Levels of Saturday 
+	int DrawWeekendsInputIndex = InputIndex;
+	SCInputRef i_DrawLevelsOnSaturday = sc.Input[InputIndex++];
+
+	// DST on off 
+	int DSTInputIndex = InputIndex;
 	SCInputRef i_IsDaylightSavings = sc.Input[InputIndex++];
 
-	// on off inputs 
-	SCInputRef i_DrawSessionOpen = sc.Input[InputIndex++];
-	SCInputRef i_DrawSessionClose = sc.Input[InputIndex++];
-	SCInputRef i_DrawGlobexClose = sc.Input[InputIndex++];
-	SCInputRef i_DrawEuropeOpen = sc.Input[InputIndex++];
-	SCInputRef i_DrawEuropeClose = sc.Input[InputIndex++];
-	SCInputRef i_DrawMidnightPrice = sc.Input[InputIndex++];
+	// User configurable session times 
+	int SessionStartTimeInputIndex = InputIndex;
+	SCInputRef i_SessionStartTime = sc.Input[InputIndex++];
 
-	// colors 
+	int SessionEndTimeInputIndex = InputIndex;
+	SCInputRef i_SessionEndTime = sc.Input[InputIndex++];
+
+	int UseEveningSessionInputIndex = InputIndex;
+	SCInputRef i_UseEveningSession = sc.Input[InputIndex++];
+
+	int EveningSessionStartTimeInputIndex = InputIndex;
+	SCInputRef i_EveningSessionStartTime = sc.Input[InputIndex++];
+
+	int EveningSessionEndTimeInputIndex = InputIndex;
+	SCInputRef i_EveningSessionEndTime = sc.Input[InputIndex++];
+
+	// on off inputs 
+	int DrawSessionOpenInputIndex = InputIndex;
+	SCInputRef i_DrawSessionOpen = sc.Input[InputIndex++];
+
+	int DrawSessionCloseInputIndex = InputIndex;
+	SCInputRef i_DrawSessionClose = sc.Input[InputIndex++];
+
+	// Sun Jan  4 02:27:18 PM EST 2026
+	//
+	// us stocks open close
+	int DrawStocksOpenInputIndex = InputIndex;
+	SCInputRef i_DrawStocksOpen = sc.Input[InputIndex++];
+
+	int DrawStocksCloseInputIndex = InputIndex;
+	SCInputRef i_DrawStocksClose = sc.Input[InputIndex++];
+
+	// futures open close 
+	int DrawGlobexOpenInputIndex = InputIndex;
+	SCInputRef i_DrawGlobexOpen = sc.Input[InputIndex++];
+
+	int DrawGlobexCloseInputIndex = InputIndex;
+	SCInputRef i_DrawGlobexClose = sc.Input[InputIndex++];
+
+	// eu open close 
+	int DrawEuropeOpenInputIndex = InputIndex;
+	SCInputRef i_DrawEuropeOpen = sc.Input[InputIndex++];
+
+	int DrawEuropeCloseInputIndex = InputIndex;
+	SCInputRef i_DrawEuropeClose = sc.Input[InputIndex++];
+
+
+	// NY Midnight Price
+	int DrawMidnightInputIndex = InputIndex;
+	SCInputRef i_DrawMidnightPrice = sc.Input[InputIndex++];
+	
+	// 00:00 UTC
+	// 00:00 UTC is also China Open
+	int DrawUTCInputIndex = InputIndex;
+	SCInputRef i_DrawUTCOpenPrice = sc.Input[InputIndex++];
+
+	// NAH TODO: China open close? 
+	// until 06:00–07:00 UTC (JAPAN)
+	//~08:00
+
+	// TODO: Show Line Short Name Text (O, C, H, L, Midnight, CNO, CNC, EUO, EUC)
+
+	// GRAPHICS SETTINGS 
+	// Intraday High Low 
+	int IntradayHighLowColor_InputIndex = InputIndex;
 	SCInputRef i_IntradayHighLowColor = sc.Input[InputIndex++];
+
+	int IntradayHighLowLineStyle_InputIndex = InputIndex;
 	SCInputRef i_IntradayHighLowLineStyle = sc.Input[InputIndex++];
+
+	int IntradayHighLowLineWidth_InputIndex = InputIndex;
 	SCInputRef i_IntradayHighLowLineWidth = sc.Input[InputIndex++];
 
+	// Session Open Close 
+	// -----
+	int SessionOpenColor_InputIndex = InputIndex;
 	SCInputRef i_SessionOpenColor = sc.Input[InputIndex++];
+
+	int SessionOpenLineStyle_InputIndex = InputIndex;
 	SCInputRef i_SessionOpenLineStyle = sc.Input[InputIndex++];
+
+	int SessionOpenLineWidth_InputIndex = InputIndex;
 	SCInputRef i_SessionOpenLineWidth = sc.Input[InputIndex++];
 
-	SCInputRef i_SettlementPriceColor = sc.Input[InputIndex++];
-	SCInputRef i_SettlementPriceLineStyle = sc.Input[InputIndex++];
-	SCInputRef i_SettlementPriceLineWidth = sc.Input[InputIndex++];
+	int SessionCloseColor_InputIndex = InputIndex;
+	SCInputRef i_SessionCloseColor = sc.Input[InputIndex++];
 
-	SCInputRef i_MidnightPriceColor = sc.Input[InputIndex++];
-	SCInputRef i_MidnightPriceLineStyle = sc.Input[InputIndex++];
-	SCInputRef i_MidnightPriceLineWidth = sc.Input[InputIndex++];
+	int SessionCloseLineStyle_InputIndex = InputIndex;
+	SCInputRef i_SessionCloseLineStyle = sc.Input[InputIndex++];
 
-	SCInputRef i_GlobexClosePriceColor = sc.Input[InputIndex++];
-	SCInputRef i_GlobexClosePriceLineStyle = sc.Input[InputIndex++];
-	SCInputRef i_GlobexClosePriceLineWidth = sc.Input[InputIndex++];
+	int SessionCloseLineWidth_InputIndex = InputIndex;
+	SCInputRef i_SessionCloseLineWidth = sc.Input[InputIndex++];
+	// -----
 
+	// US Stocks Open Close 
+	// ---
+	int StocksOpenColor_InputIndex = InputIndex;
+	SCInputRef i_USStocksOpenPriceColor = sc.Input[InputIndex++];
+
+	int StocksOpenLineStyle_InputIndex = InputIndex;
+	SCInputRef i_USStocksOpenPriceLineStyle = sc.Input[InputIndex++];
+
+	int StocksOpenLineWidth_InputIndex = InputIndex;
+	SCInputRef i_USStocksOpenPriceLineWidth = sc.Input[InputIndex++];
+
+	int StocksCloseColor_InputIndex = InputIndex;
+	SCInputRef i_USStocksClosePriceColor = sc.Input[InputIndex++];
+
+	int StocksCloseLineStyle_InputIndex = InputIndex;
+	SCInputRef i_USStocksClosePriceLineStyle = sc.Input[InputIndex++];
+	
+	int StocksCloseLineWidth_InputIndex = InputIndex;
+	SCInputRef i_USStocksClosePriceLineWidth = sc.Input[InputIndex++];
+	// ---
+	
+	// cme open close 
+	// --- 
+	int GlobexOpenColor_InputIndex = InputIndex;
+	SCInputRef i_CMEOpenPriceColor = sc.Input[InputIndex++];
+
+	int GlobexOpenLineStyle_InputIndex = InputIndex;
+	SCInputRef i_CMEOpenPriceLineStyle = sc.Input[InputIndex++];
+
+	int GlobexOpenLineWidth_InputIndex = InputIndex;
+	SCInputRef i_CMEOpenPriceLineWidth = sc.Input[InputIndex++];
+
+	int GlobexCloseColor_InputIndex = InputIndex;
+	SCInputRef i_CMEClosePriceColor = sc.Input[InputIndex++];
+
+	int GlobexCloseLineStyle_InputIndex = InputIndex;
+	SCInputRef i_CMEClosePriceLineStyle = sc.Input[InputIndex++];
+
+	int GlobexCloseLineWidth_InputIndex = InputIndex;
+	SCInputRef i_CMEClosePriceLineWidth = sc.Input[InputIndex++];
+	// ---
+	
+	// eu open close 
+	// ---
+	int EuropeOpenColor_InputIndex = InputIndex;
 	SCInputRef i_EuropeOpenColor = sc.Input[InputIndex++];
+
+	int EuropeOpenLineStyle_InputIndex = InputIndex;
 	SCInputRef i_EuropeOpenLineStyle = sc.Input[InputIndex++];
+
+	int EuropeOpenLineWidth_InputIndex = InputIndex;
 	SCInputRef i_EuropeOpenLineWidth = sc.Input[InputIndex++];
 
+	int EuropeCloseColor_InputIndex = InputIndex;
 	SCInputRef i_EuropeCloseColor = sc.Input[InputIndex++];
+
+	int EuropeCloseLineStyle_InputIndex = InputIndex;
 	SCInputRef i_EuropeCloseLineStyle = sc.Input[InputIndex++];
+
+	int EuropeCloseLineWidth_InputIndex = InputIndex;
 	SCInputRef i_EuropeCloseLineWidth = sc.Input[InputIndex++];
+	// --- 
+
+	// extra levels 
+	// ---
+	int MidnightColor_InputIndex = InputIndex;
+	SCInputRef i_MidnightPriceColor = sc.Input[InputIndex++];
+
+	int MidnightLineStyle_InputIndex = InputIndex;
+	SCInputRef i_MidnightPriceLineStyle = sc.Input[InputIndex++];
+
+	int MidnightLineWidth_InputIndex = InputIndex;
+	SCInputRef i_MidnightPriceLineWidth = sc.Input[InputIndex++];
+
+	int UTCColor_InputIndex = InputIndex;
+	SCInputRef i_UTCOpenPriceColor = sc.Input[InputIndex++];
+
+	int UTCLineStyle_InputIndex = InputIndex;
+	SCInputRef i_UTCOpenPriceLineStyle = sc.Input[InputIndex++];
+
+	int UTCLineWidth_InputIndex = InputIndex;
+	SCInputRef i_UTCOpenPriceLineWidth = sc.Input[InputIndex++];
+	// ---
 
 	// ACS Buttons 
+	int ACSButtonToDrawLevels_InputIndex = InputIndex;
 	SCInputRef i_ACSButtonToDrawLevels = sc.Input[InputIndex++];
+
+	int ACSButtonToHideLevels_InputIndex = InputIndex;
 	SCInputRef i_ACSButtonToHideLevels = sc.Input[InputIndex++];
 
 	// Enable Alerts for various levels  
+	//
+	int EnableNewHighLowAlert_InputIndex = InputIndex;
 	SCInputRef i_EnableNewHighLowAlert = sc.Input[InputIndex++];
 
-	SCInputRef i_EnablePreviousOpenAlert = sc.Input[InputIndex++];
-	SCInputRef i_EnablePreviousCloseAlert = sc.Input[InputIndex++];
-	SCInputRef i_EnablePreviousMidnightAlert = sc.Input[InputIndex++];
-	SCInputRef i_EnablePreviousCMECloseAlert = sc.Input[InputIndex++];
+	int EnableSessionOpenAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableSessionOpenAlert = sc.Input[InputIndex++];
+
+	int EnableSessionCloseAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableSessionCloseAlert = sc.Input[InputIndex++];
+
+	int EnableStocksOpenPriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableStocksOpenPriceAlert = sc.Input[InputIndex++];
+
+	int EnableStocksClosePriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableStocksClosePriceAlert = sc.Input[InputIndex++];
+
+	int EnableCMEOpenPriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableCMEOpenPriceAlert = sc.Input[InputIndex++];
+
+	int EnableCMEClosePriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableCMEClosePriceAlert = sc.Input[InputIndex++];
+
+	int EnableEuropeOpenPriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableEuropeOpenPriceAlert = sc.Input[InputIndex++];
+
+	int EnableEuropeClosePriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableEuropeClosePriceAlert = sc.Input[InputIndex++];
+
+	int EnableMidnightPriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableMidnightPriceAlert = sc.Input[InputIndex++];
+
+	int EnableUTCPriceAlert_InputIndex = InputIndex;
+	SCInputRef i_EnableUTCMidnightPriceAlert = sc.Input[InputIndex++];
 
 	// Alert Number 
-	SCInputRef i_AlertNumberForHighLowAlert = sc.Input[InputIndex++];
+	int AlertNumberForAlerts_InputIndex = InputIndex;
+	SCInputRef i_AlertNumberForCrossAlerts = sc.Input[InputIndex++];
 
 	// Alert once per bar for all alerts 
+	int AlertOncePerBar_InputIndex = InputIndex;
 	SCInputRef i_AlertOnlyOncePerBar = sc.Input[InputIndex++];
 
+	// This is the only input where we will not change it if it gets changed from another study instance 
+	int DetectChangesInputIndex = InputIndex;
+	SCInputRef i_DetectChangesFromOtherStudyInstance = sc.Input[InputIndex++];
+
+	int FontSizeInputIndex = InputIndex;
+	SCInputRef i_FontSizeForLineText = sc.Input[InputIndex++];
+
+	// defaults
+	int StudyDisplayOrder = 1;
 	if(sc.SetDefaults)
 	{
-		sc.GraphName = "Draw Prior Days Session High Low Close";
+		std::string StudyGraphName = "Analysis - Draw Prior Days Levels | v" + std::to_string(ver) + " |";
+		sc.GraphName = StudyGraphName.c_str();
 		sc.ValueFormat = sc.BaseGraphValueFormat;
 		sc.GraphRegion = 0;
 		sc.AutoLoop		= 0; // manual loop 
@@ -331,213 +548,437 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// Necessary for obtaining the Bar End Time 
 		sc.MaintainAdditionalChartDataArrays = 1;
 
-		i_NumDaysToCalculateHighLow.Name = "Number of Days Back to Draw Levels";
-		i_NumDaysToCalculateHighLow.SetInt(4);
-		i_NumDaysToCalculateHighLow.SetIntLimits(0,30);
-		i_NumDaysToCalculateHighLow.SetDescription("Controls the Number of Days Back the Study draws the Levels. A setting of 0 draws only for the current day.");
+		i_DetectChangesFromOtherStudyInstance.Name = "Commit Changes Made From Other Study Instances";
+		i_DetectChangesFromOtherStudyInstance.SetYesNo(1);
+		i_DetectChangesFromOtherStudyInstance.SetDescription("Detects changes made by other instances of this study within the same chart book, and commits them to this instance.");
+		i_DetectChangesFromOtherStudyInstance.DisplayOrder = StudyDisplayOrder++;
 
-		i_DrawLevelsOnWeekend.Name = "Keep Drawing Levels on Weekend (Crypto)";
-		i_DrawLevelsOnWeekend.SetYesNo(0);
+		i_NumDaysToCalculate.Name = "Number of Days Back to Draw Levels";
+		i_NumDaysToCalculate.SetInt(5);
+		i_NumDaysToCalculate.SetIntLimits(0,30);
+		i_NumDaysToCalculate.SetDescription("Controls the Number of Days Back the Study draws the Levels. A setting of 0 draws only for the current day.");
+		i_NumDaysToCalculate.DisplayOrder = StudyDisplayOrder++;
+
+		i_DrawLevelsOnSaturday.Name = "Draw Levels on Saturday";
+		i_DrawLevelsOnSaturday.SetYesNo(0);
+		i_DrawLevelsOnSaturday.SetDescription("Controls whether levels are drawn on Saturday. This is for usage with Cryptocurrency symbols that continue trading on Saturday. This input has no effect on Sunday levels, these will be drawn regardless.");
+		i_DrawLevelsOnSaturday.DisplayOrder = StudyDisplayOrder++;
 
 		i_IsDaylightSavings.Name = "Adjust Study Times for Daylight Savings Time";
-		i_IsDaylightSavings.SetYesNo(1);
-		i_IsDaylightSavings.SetDescription("Enable this if you set your Chart Timezone and Session Times based on New York time and we are between the dates of March and November when Daylight savings time is observed");
+		i_IsDaylightSavings.SetYesNo(0);
+		i_IsDaylightSavings.SetDescription("Enable this if you are in a location that observes Daylight Savings Time and the current date is between March and November when Daylight Savings Time is observed");
+		i_IsDaylightSavings.DisplayOrder = StudyDisplayOrder++;
  
+		// User controlled session times (Initially obtained from the Chart)
+		//
+		// sc.StartTime1 (RTH Open)
+		// sc.StartTime2 (RTH Close)
+		//
+		// sc.EndTime1 (ETH Open)
+		// sc.EndTime2 (ETH Close)
+		i_SessionStartTime.Name = "Session Start Time (Read/Write)";
+		i_SessionStartTime.SetTime(sc.StartTime1); // Set the time for the input to 8:30
+		i_SessionStartTime.SetDescription("This input sets Chart Settings >> Session Times >> Session Start Time for the Chart. "
+			"The value of this input will also change when the setting is changed by the user in Chart Settings.");
+		i_SessionStartTime.DisplayOrder = StudyDisplayOrder++;
+													  
+		i_SessionEndTime.Name = "Session End Time (Read/Write)";
+		i_SessionEndTime.SetTime(sc.EndTime1); // 
+		i_SessionEndTime.SetDescription("This input sets Chart Settings >> Session Times >> Session End Time for the Chart. "
+			"The value of this input will also change when the setting is changed by the user in Chart Settings.");
+		i_SessionEndTime.DisplayOrder = StudyDisplayOrder++;
 
+		i_UseEveningSession.Name = "Use Evening Session (Read/Write)"; 
+		i_UseEveningSession.SetYesNo(sc.UseSecondStartEndTimes);
+		i_UseEveningSession.SetDescription("This input sets Chart Settings >> Session Times >> Use Evening Session for the Chart. "
+			"The value of this input will also change when the setting is changed by the user in Chart Settings.");
+		i_UseEveningSession.DisplayOrder = StudyDisplayOrder++;
+
+		i_EveningSessionStartTime.Name = "Evening Session Start Time (Read/Write)";
+		i_EveningSessionStartTime.SetTime(sc.StartTime2);
+		i_EveningSessionStartTime.SetDescription("This input sets Chart Settings >> Session Times >> Evening Start Time for the Chart. "
+			"The value of this input will also change when the setting is changed by the user in Chart Settings.");
+		i_EveningSessionStartTime.DisplayOrder = StudyDisplayOrder++;
+
+		i_EveningSessionEndTime.Name = "Evening Session End Time (Read/Write)";
+		i_EveningSessionEndTime.SetTime(sc.EndTime2);
+		i_EveningSessionEndTime.SetDescription("This input sets Chart Settings >> Session Times >> Evening End Time for the Chart"
+			"The value of this input will also change when the setting is changed by the user in Chart Settings.");
+		i_EveningSessionEndTime.DisplayOrder = StudyDisplayOrder++;
+		//
 		// Session Open Time (Set in Chart Settings -> Session Times)
 		i_DrawSessionOpen.Name = "Draw Session Open Price";
 		i_DrawSessionOpen.SetYesNo(1);
 		i_DrawSessionOpen.SetDescription("Enable Drawing the Session Open Price.");
+		i_DrawSessionOpen.DisplayOrder = StudyDisplayOrder++;
 
 		// Session Close Time (Set in Chart Settings -> Session Times)
 		i_DrawSessionClose.Name = "Draw Session Close Price";
 		i_DrawSessionClose.SetYesNo(1);
 		i_DrawSessionClose.SetDescription("Enable Drawing the Session Close Price.");
+		i_DrawSessionClose.DisplayOrder = StudyDisplayOrder++;
 
-		// Futures 5PM ET Close Time 
+		// Stocks Open
+		i_DrawStocksOpen.Name = "Draw US Stock Market Open Price";
+		i_DrawStocksOpen.SetYesNo(1);
+		i_DrawStocksOpen.SetDescription("Draw US Stock Market Open Price When Session Open Not 9:30 ET.");
+		i_DrawStocksOpen.DisplayOrder = StudyDisplayOrder++;
+
+		// Stocks Close
+		i_DrawStocksClose.Name = "Draw US Stock Market Close Price";
+		i_DrawStocksClose.SetYesNo(1);
+		i_DrawStocksClose.SetDescription("Draw US Stock Market Close Price When Session Close Not 16:00 ET.");
+		i_DrawStocksClose.DisplayOrder = StudyDisplayOrder++;
+
+		// Globex Open
+		i_DrawGlobexOpen.Name = "Draw CME Futures Open Price";
+		i_DrawGlobexOpen.SetYesNo(1);
+		i_DrawGlobexOpen.SetDescription("Enable Drawing the Globex Futures Market Opening Price");
+		i_DrawGlobexOpen.DisplayOrder = StudyDisplayOrder++;
+
+		// Globex Close 5pm ET
 		i_DrawGlobexClose.Name = "Draw CME Futures Close Price";
 		i_DrawGlobexClose.SetYesNo(1);
 		i_DrawGlobexClose.SetDescription("Enable Drawing the CME Globex Close Price.");
+		i_DrawGlobexClose.DisplayOrder = StudyDisplayOrder++;
 
 		// Europe Open (3AM ET)
 		i_DrawEuropeOpen.Name = "Draw Europe Open Price";
 		i_DrawEuropeOpen.SetYesNo(1);
 		i_DrawEuropeOpen.SetDescription("Enable Drawing the Europe Session Open Price. 3AM New York Time");
+		i_DrawEuropeOpen.DisplayOrder = StudyDisplayOrder++;
 
 		// Europe Close (11:30AM ET)
 		i_DrawEuropeClose.Name = "Draw Europe Close Price";
 		i_DrawEuropeClose.SetYesNo(1);
 		i_DrawEuropeClose.SetDescription("Enable Drawing the Europe Session Close Price. 11:30 AM New York Time");
+		i_DrawEuropeClose.DisplayOrder = StudyDisplayOrder++;
 
 		// Extra Levels / Open Close Times 
 		// Midnight Price 
 		i_DrawMidnightPrice.Name = "Draw New York Midnight Price";
 		i_DrawMidnightPrice.SetYesNo(1);
 		i_DrawMidnightPrice.SetDescription("Enable Drawing the New York Midnight Price.");
+		i_DrawMidnightPrice.DisplayOrder = StudyDisplayOrder++;
 
-		// Line Color & Style inputs 
+		i_DrawUTCOpenPrice.Name = "Draw UTC 00:00 Open Price";
+		i_DrawUTCOpenPrice.SetYesNo(1);
+		i_DrawUTCOpenPrice.SetDescription("Enable Drawing the UTC 00:00 Open Price.");
+		i_DrawUTCOpenPrice.DisplayOrder = StudyDisplayOrder++;
+
+		// LINE SETTINGS 
+		//
+		i_FontSizeForLineText.Name = "Font Size For Line Text";
+		i_FontSizeForLineText.SetInt(10);
+		i_FontSizeForLineText.SetIntLimits(3,40);
+		i_FontSizeForLineText.DisplayOrder = StudyDisplayOrder++;
+
+		// PD HIGH LOW Line Color & Style inputs 
 		i_IntradayHighLowColor.Name = "Intraday High/Low Line Color";
 		i_IntradayHighLowColor.SetColor(128,255,255); // baby blue 
 		i_IntradayHighLowColor.SetDescription("Line Color for High/Low Line Drawings");
+		i_IntradayHighLowColor.DisplayOrder = StudyDisplayOrder++;
 													  
 		i_IntradayHighLowLineStyle.Name = "Intraday High/Low Line Style";
 		i_IntradayHighLowLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
 		i_IntradayHighLowLineStyle.SetCustomInputIndex(0);
 		i_IntradayHighLowLineStyle.SetDescription("Line Style for High/Low Line Drawings");
+		i_IntradayHighLowLineStyle.DisplayOrder = StudyDisplayOrder++;
 
 		i_IntradayHighLowLineWidth.Name = "Intraday High/Low Line Width";
 		i_IntradayHighLowLineWidth.SetInt(2);
 		i_IntradayHighLowLineWidth.SetIntLimits(1,20);
 		i_IntradayHighLowLineWidth.SetDescription("Line Width for High/Low Line Drawings");
+		i_IntradayHighLowLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// Session Open
 		i_SessionOpenColor.Name = "Session Open Price Color";
 		i_SessionOpenColor.SetColor(128,255,128); // light green
 		i_SessionOpenColor.SetDescription("Line Color for Session Open Drawings");
+		i_SessionOpenColor.DisplayOrder = StudyDisplayOrder++;
 												  
 		i_SessionOpenLineStyle.Name = "Session Open Price Line Style";
 		i_SessionOpenLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
 		i_SessionOpenLineStyle.SetCustomInputIndex(4);
 		i_SessionOpenLineStyle.SetDescription("Line Style for Session Open Drawings");
+		i_SessionOpenLineStyle.DisplayOrder = StudyDisplayOrder++;
 
 		i_SessionOpenLineWidth.Name = "Session Open Price Line Width";
-		i_SessionOpenLineWidth.SetInt(4);
+		i_SessionOpenLineWidth.SetInt(3);
 		i_SessionOpenLineWidth.SetIntLimits(1,20);
 		i_SessionOpenLineWidth.SetDescription("Line Width for Session Open Drawings");
+		i_SessionOpenLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// Session Close 
-		i_SettlementPriceColor.Name = "Session Close Price Color";
-		i_SettlementPriceColor.SetColor(255,20, 128); // cherry ish (dash dot)
-		i_SettlementPriceColor.SetDescription("Line Color for Session Close Drawings");
+		i_SessionCloseColor.Name = "Session Close Price Color";
+		i_SessionCloseColor.SetColor(255,128, 192); // pink
+		i_SessionCloseColor.SetDescription("Line Color for Session Close Drawings");
+		i_SessionCloseColor.DisplayOrder = StudyDisplayOrder++;
 
-		i_SettlementPriceLineStyle.Name = "Session Close Price Line Style";
-		i_SettlementPriceLineStyle.SetCustomInputStrings(
+		i_SessionCloseLineStyle.Name = "Session Close Price Line Style";
+		i_SessionCloseLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
-		i_SettlementPriceLineStyle.SetCustomInputIndex(4);
-		i_SettlementPriceLineStyle.SetDescription("Line Style for Session Close Drawings");
+		i_SessionCloseLineStyle.SetCustomInputIndex(4);
+		i_SessionCloseLineStyle.SetDescription("Line Style for Session Close Drawings");
+		i_SessionCloseLineStyle.DisplayOrder = StudyDisplayOrder++;
 
-		i_SettlementPriceLineWidth.Name = "Session Close Price Line Width";
-		i_SettlementPriceLineWidth.SetInt(4);
-		i_SettlementPriceLineWidth.SetIntLimits(1,20);
-		i_SettlementPriceLineWidth.SetDescription("Line Width for Session Close Drawings");
+		i_SessionCloseLineWidth.Name = "Session Close Price Line Width";
+		i_SessionCloseLineWidth.SetInt(3);
+		i_SessionCloseLineWidth.SetIntLimits(1,20);
+		i_SessionCloseLineWidth.SetDescription("Line Width for Session Close Drawings");
+		i_SessionCloseLineWidth.DisplayOrder = StudyDisplayOrder++;
 
-		// Midnight Price 
-		i_MidnightPriceColor.Name = "Midnight Price Color";
-		i_MidnightPriceColor.SetColor(255,0,255); // magenta ish (dash dot) 
-		i_MidnightPriceColor.SetDescription("Line Color for Midnight Price Drawings");
-												  
-		i_MidnightPriceLineStyle.Name = "Midnight Price Line Style";
-		i_MidnightPriceLineStyle.SetCustomInputStrings(
+
+		// US Stocks Open Price 
+		i_USStocksOpenPriceColor.Name = "US Stocks Open Price Color";
+		i_USStocksOpenPriceColor.SetColor(0,128,0); // lighter green
+		i_USStocksOpenPriceColor.SetDescription("Line Color for US Stocks Open Price Drawings");
+		i_USStocksOpenPriceColor.DisplayOrder = StudyDisplayOrder++;
+													 
+		i_USStocksOpenPriceLineStyle.Name = "US Stocks Open Price Line Style";
+		i_USStocksOpenPriceLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
-		i_MidnightPriceLineStyle.SetCustomInputIndex(4);
-		i_MidnightPriceLineStyle.SetDescription("Line Style for Midnight Price Drawings");
+		i_USStocksOpenPriceLineStyle.SetCustomInputIndex(4);
+		i_USStocksOpenPriceLineStyle.SetDescription("Line Style for US Stocks Open Price Drawings");
+		i_USStocksOpenPriceLineStyle.DisplayOrder = StudyDisplayOrder++;
 
-		i_MidnightPriceLineWidth.Name = "Midnight Price Line Width";
-		i_MidnightPriceLineWidth.SetInt(4);
-		i_MidnightPriceLineWidth.SetIntLimits(1,20);
-		i_MidnightPriceLineWidth.SetDescription("Line Width for Midnight Price Drawings");
+		i_USStocksOpenPriceLineWidth.Name = "US Stocks Open Price Line Width";
+		i_USStocksOpenPriceLineWidth.SetInt(3);
+		i_USStocksOpenPriceLineWidth.SetIntLimits(1,20);
+		i_USStocksOpenPriceLineWidth.SetDescription("Line Width for US Stocks Open Price Drawings");
+		i_USStocksOpenPriceLineWidth.DisplayOrder = StudyDisplayOrder++;
+
+		// US Stocks Close Price
+		i_USStocksClosePriceColor.Name = "US Stocks Close Price Color";
+		i_USStocksClosePriceColor.SetColor(255,0, 128); // darker cherry red 
+		i_USStocksClosePriceColor.SetDescription("Line Color for US Stocks Close Price Drawings");
+		i_USStocksClosePriceColor.DisplayOrder = StudyDisplayOrder++;
+													 
+		i_USStocksClosePriceLineStyle.Name = "US Stocks Close Price Line Style";
+		i_USStocksClosePriceLineStyle.SetCustomInputStrings(
+			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
+		i_USStocksClosePriceLineStyle.SetCustomInputIndex(4);
+		i_USStocksClosePriceLineStyle.SetDescription("Line Style for US Stocks Close Price Drawings");
+		i_USStocksClosePriceLineStyle.DisplayOrder = StudyDisplayOrder++;
+
+		i_USStocksClosePriceLineWidth.Name = "US Stocks Close Price Line Width";
+		i_USStocksClosePriceLineWidth.SetInt(3);
+		i_USStocksClosePriceLineWidth.SetIntLimits(1,20);
+		i_USStocksClosePriceLineWidth.SetDescription("Line Width for US Stocks Close Price Drawings");
+		i_USStocksClosePriceLineWidth.DisplayOrder = StudyDisplayOrder++;
+		//
+		// CME Open price 
+		i_CMEOpenPriceColor.Name = "CME Futures Open Price Color";
+		i_CMEOpenPriceColor.SetColor(255,255,255); // white
+		i_CMEOpenPriceColor.SetDescription("Line Color for CME Open Price Drawings");
+		i_CMEOpenPriceColor.DisplayOrder = StudyDisplayOrder++;
+													 
+		i_CMEOpenPriceLineStyle.Name = "CME Futures Open Price Line Style";
+		i_CMEOpenPriceLineStyle.SetCustomInputStrings(
+			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
+		i_CMEOpenPriceLineStyle.SetCustomInputIndex(4);
+		i_CMEOpenPriceLineStyle.SetDescription("Line Style for CME Open Price Drawings");
+		i_CMEOpenPriceLineStyle.DisplayOrder = StudyDisplayOrder++;
+
+		i_CMEOpenPriceLineWidth.Name = "CME Futures Open Price Line Width";
+		i_CMEOpenPriceLineWidth.SetInt(3);
+		i_CMEOpenPriceLineWidth.SetIntLimits(1,20);
+		i_CMEOpenPriceLineWidth.SetDescription("Line Width for CME Open Price Drawings");
+		i_CMEOpenPriceLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// CME Close price 
-		i_GlobexClosePriceColor.Name = "CME Futures Close Price Color";
-		i_GlobexClosePriceColor.SetColor(0,255,255); // darker cyan (dash dot) 
-		i_GlobexClosePriceColor.SetDescription("Line Color for CME Close Price Drawings");
+		i_CMEClosePriceColor.Name = "CME Futures Close Price Color";
+		i_CMEClosePriceColor.SetColor(0,255,255); // darker cyan (dash dot) 
+		i_CMEClosePriceColor.SetDescription("Line Color for CME Close Price Drawings");
+		i_CMEClosePriceColor.DisplayOrder = StudyDisplayOrder++;
 													 
-		i_GlobexClosePriceLineStyle.Name = "CME Futures Close Price Line Style";
-		i_GlobexClosePriceLineStyle.SetCustomInputStrings(
+		i_CMEClosePriceLineStyle.Name = "CME Futures Close Price Line Style";
+		i_CMEClosePriceLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
-		i_GlobexClosePriceLineStyle.SetCustomInputIndex(4);
-		i_GlobexClosePriceLineStyle.SetDescription("Line Style for CME Close Price Drawings");
+		i_CMEClosePriceLineStyle.SetCustomInputIndex(4);
+		i_CMEClosePriceLineStyle.SetDescription("Line Style for CME Close Price Drawings");
+		i_CMEClosePriceLineStyle.DisplayOrder = StudyDisplayOrder++;
 
-		i_GlobexClosePriceLineWidth.Name = "CME Futures Close Price Line Width";
-		i_GlobexClosePriceLineWidth.SetInt(4);
-		i_GlobexClosePriceLineWidth.SetIntLimits(1,20);
-		i_GlobexClosePriceLineWidth.SetDescription("Line Width for CME Close Price Drawings");
+		i_CMEClosePriceLineWidth.Name = "CME Futures Close Price Line Width";
+		i_CMEClosePriceLineWidth.SetInt(3);
+		i_CMEClosePriceLineWidth.SetIntLimits(1,20);
+		i_CMEClosePriceLineWidth.SetDescription("Line Width for CME Close Price Drawings");
+		i_CMEClosePriceLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// EU Open Price 
 		i_EuropeOpenColor.Name = "Europe Open Price Color";
 		i_EuropeOpenColor.SetColor(0,0,255); // navy blue dash dot) 
 		i_EuropeOpenColor.SetDescription("Line Color for EU Open Price Drawings");
+		i_EuropeOpenColor.DisplayOrder = StudyDisplayOrder++;
 		
 		i_EuropeOpenLineStyle.Name = "Europe Open Price Line Style";
 		i_EuropeOpenLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
 		i_EuropeOpenLineStyle.SetCustomInputIndex(4);
 		i_EuropeOpenLineStyle.SetDescription("Line Style for EU Open Price Drawings");
+		i_EuropeOpenLineStyle.DisplayOrder = StudyDisplayOrder++;
 
 		i_EuropeOpenLineWidth.Name = "Europe Open Price Line Width";
-		i_EuropeOpenLineWidth.SetInt(4);
+		i_EuropeOpenLineWidth.SetInt(3);
 		i_EuropeOpenLineWidth.SetIntLimits(1,20);
 		i_EuropeOpenLineWidth.SetDescription("Line Width for EU Open Price Drawings");
+		i_EuropeOpenLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// EU Close Price 
 		i_EuropeCloseColor.Name = "Europe Close Price Color";
 		i_EuropeCloseColor.SetColor(128,0,128); // navy blue 
 		i_EuropeCloseColor.SetDescription("Line Color for EU Close Price Drawings");
+		i_EuropeCloseColor.DisplayOrder = StudyDisplayOrder++;
 												
 		i_EuropeCloseLineStyle.Name = "Europe Close Price Line Style";
 		i_EuropeCloseLineStyle.SetCustomInputStrings(
 			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
 		i_EuropeCloseLineStyle.SetCustomInputIndex(4);
 		i_EuropeCloseLineStyle.SetDescription("Line Style for EU Close Price Drawings");
+		i_EuropeCloseLineStyle.DisplayOrder = StudyDisplayOrder++;
 
 		i_EuropeCloseLineWidth.Name = "Europe Close Price Line Width";
-		i_EuropeCloseLineWidth.SetInt(4);
+		i_EuropeCloseLineWidth.SetInt(3);
 		i_EuropeCloseLineWidth.SetIntLimits(1,20);
 		i_EuropeCloseLineWidth.SetDescription("Line Width for EU Close Price Drawings");
+		i_EuropeCloseLineWidth.DisplayOrder = StudyDisplayOrder++;
+
+		// Midnight Price 
+		i_MidnightPriceColor.Name = "Midnight Price Color";
+		i_MidnightPriceColor.SetColor(255,0,255); // magenta ish (dash dot) 
+		i_MidnightPriceColor.SetDescription("Line Color for Midnight Price Drawings");
+		i_MidnightPriceColor.DisplayOrder = StudyDisplayOrder++;
+												  
+		i_MidnightPriceLineStyle.Name = "Midnight Price Line Style";
+		i_MidnightPriceLineStyle.SetCustomInputStrings(
+			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
+		i_MidnightPriceLineStyle.SetCustomInputIndex(4);
+		i_MidnightPriceLineStyle.SetDescription("Line Style for Midnight Price Drawings");
+		i_MidnightPriceLineStyle.DisplayOrder = StudyDisplayOrder++;
+
+		i_MidnightPriceLineWidth.Name = "Midnight Price Line Width";
+		i_MidnightPriceLineWidth.SetInt(3);
+		i_MidnightPriceLineWidth.SetIntLimits(1,20);
+		i_MidnightPriceLineWidth.SetDescription("Line Width for Midnight Price Drawings");
+		i_MidnightPriceLineWidth.DisplayOrder = StudyDisplayOrder++;
+
+		// UTC Open Price
+		i_UTCOpenPriceColor.Name = "UTC Open Price Color";
+		i_UTCOpenPriceColor.SetColor(255,145,33); // Orange 
+		i_UTCOpenPriceColor.SetDescription("Line Color for UTC Open Price Drawings");
+		i_UTCOpenPriceColor.DisplayOrder = StudyDisplayOrder++;
+												  
+		i_UTCOpenPriceLineStyle.Name = "UTC Open Price Line Style";
+		i_UTCOpenPriceLineStyle.SetCustomInputStrings(
+			"Solid;Dash;Dot;DashDot;DashDotDot;Alternate");
+		i_UTCOpenPriceLineStyle.SetCustomInputIndex(4);
+		i_UTCOpenPriceLineStyle.SetDescription("Line Style for UTC Open Price Drawings");
+		i_UTCOpenPriceLineStyle.DisplayOrder = StudyDisplayOrder++;
+
+		i_UTCOpenPriceLineWidth.Name = "UTC Open Price Line Width";
+		i_UTCOpenPriceLineWidth.SetInt(3);
+		i_UTCOpenPriceLineWidth.SetIntLimits(1,20);
+		i_UTCOpenPriceLineWidth.SetDescription("Line Width for UTC Open Price Drawings");
+		i_UTCOpenPriceLineWidth.DisplayOrder = StudyDisplayOrder++;
 
 		// ACS Button inputs 
-		i_ACSButtonToDrawLevels.Name = "(Debugging only) ACS Button To ReDraw Prior Day Levels";
-		i_ACSButtonToDrawLevels.SetInt(110);
-		i_ACSButtonToDrawLevels.SetIntLimits(0, 150);
-		i_ACSButtonToDrawLevels.SetDescription("ACS Button Number that was used to redraw the drawings during debugging");
+		// i_ACSButtonToDrawLevels.Name = "(Debugging only) ACS Button To ReDraw Prior Day Levels";
+		// i_ACSButtonToDrawLevels.SetInt(110);
+		// i_ACSButtonToDrawLevels.SetIntLimits(0, 150);
+		// i_ACSButtonToDrawLevels.SetDescription("ACS Button Number that was used to redraw the drawings during debugging");
 
 		i_ACSButtonToHideLevels.Name = "ACS Button To Hide Prior Day Levels";
 		i_ACSButtonToHideLevels.SetInt(111);
 		i_ACSButtonToHideLevels.SetIntLimits(0,150);
 		i_ACSButtonToHideLevels.SetDescription("ACS Button Number to be used to temporarily Hide/Show the drawings created by this study.");
+		i_ACSButtonToHideLevels.DisplayOrder = StudyDisplayOrder++;
 
 		// Alert Inputs 
-		i_EnableNewHighLowAlert.Name = "Enable Study Alert for New Low/High of Day";
+		i_EnableNewHighLowAlert.Name = "Alert When Crossing Previous High or Low";
 		i_EnableNewHighLowAlert.SetYesNo(1);
-		i_EnableNewHighLowAlert.SetDescription("Enable Study Alert when there is a new High/Low of current Day");
+		i_EnableNewHighLowAlert.SetDescription("Enable Study Alert when there is a new High/Low of Current Day");
+		i_EnableNewHighLowAlert.DisplayOrder = StudyDisplayOrder++;
 
-		i_EnablePreviousOpenAlert.Name = "Enable Alert When Test Previous Open";
-		i_EnablePreviousOpenAlert.SetYesNo(1);
-		i_EnablePreviousOpenAlert.SetDescription("Enable Study Alert When Test Previous Open Price");
+		i_EnableSessionOpenAlert.Name = "Alert When Crossing Previous Session Open";
+		i_EnableSessionOpenAlert.SetYesNo(0);
+		i_EnableSessionOpenAlert.SetDescription("Enable Study Alert When TCrossingest Previous Open Price");
+		i_EnableSessionOpenAlert.DisplayOrder = StudyDisplayOrder++;
 
-		i_EnablePreviousCloseAlert.Name = "Enable Alert When Test Previous Close";
-		i_EnablePreviousCloseAlert.SetYesNo(1);
-		i_EnablePreviousCloseAlert.SetDescription("Enable Study Alert When Test Previous Close Price");
+		i_EnableSessionCloseAlert.Name = "Alert When Crossing Previous Session Close";
+		i_EnableSessionCloseAlert.SetYesNo(0);
+		i_EnableSessionCloseAlert.SetDescription("Enable Study Alert When Crossing Previous Close Price");
+		i_EnableSessionCloseAlert.DisplayOrder = StudyDisplayOrder++;
 
-		i_EnablePreviousMidnightAlert.Name = "Enable Alert When Test Previous Midnight Price";
-		i_EnablePreviousMidnightAlert.SetYesNo(1);
-		i_EnablePreviousMidnightAlert.SetDescription("Enable Study Alert When Test Previous Midnight Price");
+		i_EnableStocksOpenPriceAlert.Name = "Alert When Crossing Previous US Stocks Open Price";
+		i_EnableStocksOpenPriceAlert.SetYesNo(0);
+		i_EnableStocksOpenPriceAlert.SetDescription("Enable Study Alert When Clossing US Stocks Open Price");
+		i_EnableStocksOpenPriceAlert.DisplayOrder = StudyDisplayOrder++;
 
-		i_EnablePreviousCMECloseAlert.Name = "Enable Alert When Test Previous CME Close Price";
-		i_EnablePreviousCMECloseAlert.SetYesNo(1);
-		i_EnablePreviousCMECloseAlert.SetDescription("Enable Study Alert When Test Previous CME Close Price");
-		
+		i_EnableStocksClosePriceAlert.Name = "Alert When Crossing Previous US Stocks Close Price";
+		i_EnableStocksClosePriceAlert.SetYesNo(0);
+		i_EnableStocksClosePriceAlert.SetDescription("Enable Study Alert When Crossing US Previous Stocks Close Price");
+		i_EnableStocksClosePriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableCMEOpenPriceAlert.Name = "Alert When Crossing Previous CME Open Price";
+		i_EnableCMEOpenPriceAlert.SetYesNo(0);
+		i_EnableCMEOpenPriceAlert.SetDescription("Enable Study Alert When Crossing Previous CME Open Price");
+		i_EnableCMEOpenPriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableCMEClosePriceAlert.Name = "Alert When Crossing Previous CME Close Price";
+		i_EnableCMEClosePriceAlert.SetYesNo(0);
+		i_EnableCMEClosePriceAlert.SetDescription("Enable Study Alert When Crossing Previous CME Close Price");
+		i_EnableCMEClosePriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableEuropeOpenPriceAlert.Name = "Alert When Crossing Previous Europe Open Price";
+		i_EnableEuropeOpenPriceAlert.SetYesNo(0);
+		i_EnableEuropeOpenPriceAlert.SetDescription("Enable Study Alert When Crossing Previous Europe Open Price");
+		i_EnableEuropeOpenPriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableEuropeClosePriceAlert.Name = "Alert When Crossing Previous Europe Close Price";
+		i_EnableEuropeClosePriceAlert.SetYesNo(0);
+		i_EnableEuropeClosePriceAlert.SetDescription("Enable Study Alert When Crossing Previous Europe Close Price");
+		i_EnableEuropeClosePriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableCMEClosePriceAlert.Name = "Alert When Crossing Previous CME Close Price";
+		i_EnableCMEClosePriceAlert.SetYesNo(0);
+		i_EnableCMEClosePriceAlert.SetDescription("Enable Study Alert When Crossing Previous CME Close Price");
+		i_EnableCMEClosePriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableMidnightPriceAlert.Name = "Alert When Crossing Previous Midnight Price";
+		i_EnableMidnightPriceAlert.SetYesNo(1);
+		i_EnableMidnightPriceAlert.SetDescription("Enable Study Alert When Crossing Previous Midnight Price");
+		i_EnableMidnightPriceAlert.DisplayOrder = StudyDisplayOrder++;
+
+		i_EnableUTCMidnightPriceAlert.Name = "Alert When Crossing Previous UTC Midnight Price";
+		i_EnableUTCMidnightPriceAlert.SetYesNo(1);
+		i_EnableUTCMidnightPriceAlert.SetDescription("Enable Study Alert When Crossing Previous UTC Midnight Price");
+		i_EnableUTCMidnightPriceAlert.DisplayOrder = StudyDisplayOrder++;
+
 		// Alert Number for the alert
 		// Alert Numbers and sounds are configured in 
 		// Global Settings > General Settings > Alerts 
-		i_AlertNumberForHighLowAlert.Name = "Alert Number for New Low/High Alert";
-		i_AlertNumberForHighLowAlert.SetInt(4);
-		i_AlertNumberForHighLowAlert.SetIntLimits(1,200);
-		i_AlertNumberForHighLowAlert.SetDescription("Alert Number to use for New High/Low of Day Alert");
+		i_AlertNumberForCrossAlerts.Name = "Alert Number To Use for Study Alerts";
+		i_AlertNumberForCrossAlerts.SetInt(4);
+		i_AlertNumberForCrossAlerts.SetIntLimits(1,200);
+		i_AlertNumberForCrossAlerts.SetDescription("Alert Number To Use for Alerts Generated By This Study ");
+		i_AlertNumberForCrossAlerts.DisplayOrder = StudyDisplayOrder++;
 
 		// Alert Only Once per bar or everytime there is a new high or low of day. 
 		//
 		// The user would set this to 0 if they wanted to recieve many alerts when
 		// there is a new high or low. In the case that they want to be notified 
 		// if the market is moving. 
-		i_AlertOnlyOncePerBar.Name = "Send New High/Low Alert Only Once Per Bar";
+		i_AlertOnlyOncePerBar.Name = "Alert Only Once Per Bar";
 		i_AlertOnlyOncePerBar.SetYesNo(1);
-		i_AlertOnlyOncePerBar.SetDescription("It is recommended to leave this input enabled and only disable it if you want to recieve many alerts when a new high/low is made.");
+		i_AlertOnlyOncePerBar.SetDescription("It is recommended to leave this input enabled and only disable it if you want to recieve many alerts when a new high/low is made or when a level is crossed.");
+		i_AlertOnlyOncePerBar.DisplayOrder = StudyDisplayOrder++;
 
 		// Study Description
 		sc.StudyDescription = "This study was written by Christian at VerrilloTrading in December of 2024. "
+			"<br><br>"
+			"This is version 2 which was released on Feburary 2, 2026"
 			"<br><br>"
 			"This study shows prior day levels on the chart for a number of days going back. These levels include the session Open Close High Low, and additional levels like New York midnight price, EU open and close prices, and CME Globex close price."
 			"<br><br>"
@@ -552,48 +993,42 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			"<br><br>"
 			"<strong>Suggestions Regarding The Chart Time Zone:</strong>"
 			"<br><br>"
-			"It is recommended to set the Time Zone of your chart explicitly using Chart Settings > Session Times > Time Zone. As opposed to setting it to <u>Use Global Time Zone</u>. One reason for this is because when this setting is changed it automatically changes the session start and end times for the chart. Making it easier if you move to a different Time Zone and need to change the Session Times for the Chart. In addition to this I recommend linking the Session Time and Time Zone on any charts in your chartbook that use the same Session Times. This is controlled using Chart Settings > Linking > Chart Linking."
+			"It is recommended to set the Time Zone of your chart explicitly using Chart Settings > Session Times > Time Zone. As opposed to setting it to <u>Use Global Time Zone</u>. One reason for this is because when this setting is changed it automatically changes the session start and end times for the chart. Making it easier if you move to a different Time Zone and need to change the Session Times for the Chart. In addition to this a user might consider linking the Session Time and Time Zone for some charts in your chartbook that use the same Session Times. This is controlled using Chart Settings > Linking > Chart Linking."
 
 			"<br><br>"
 			"<strong>Hide/Show Prior Day Levels:</strong>"
 			"<br><br>"
-			"There is support for hiding the drawings that this study draws. This is done using the Input Setting named <strong>ACS Button To Hide Prior Day Levels</strong> to select which Advanced Custom Study button will be used to hide or show the drawings. By default they are always shown."
+			"There is support for hiding the drawings that this study draws. This is done using the Input Setting named <strong>ACS Button To Hide Prior Day Levels</strong> to select which Advanced Custom Study button will be used to hide or show the drawings. By default they are always shown, until the study is removed from the chart. The lines can also be deleted but will be redrawn if the chart is recalculated by performing Chart > Reload and Recalculate"
 			"<br><br>"
 			"<strong>Using Different Intraday Storage Time Units:</strong>"
 			"<br><br>"
-			"Currently the study only supports using an intraday storage time unit of one tick or one second."
-			"<br><br>"
-			"The fix for this is in the process of being added to the study. Because we also use intraday storage time unit 2 seconds and above on a Sierra Chart instance running remotely only for the purpose of sending alerts, obtaining quotes or position updates."
+			"The study now supports using different Intra Day Storage Time Units. Please contact us if you see a problem or if levels are not being drawn. We tested it using Intraday Storage Time units of 5 and lower"
 			"<br><br>"
 			"<strong>Steps to Ensure the CME Globex Close Price is Drawn:</strong>"
 			"<br><br>"
-			"It is necessary to enable this setting: Chart Settings > Bar Period > Include Columns With No Data."
+			"The CME Globex close price will not be drawn in real-time when the futures market close. If you need it to be drawn you can perform Chart > Reload and Recalculate after the market closes and it will be drawn."
 			"<br><br>"
-			"It is also important that this setting remains in an off state: Chart Settings > Session Times > Apply Intra Day Session Times To Intraday Chart.  "
+			"It is no longer necessary to enable this setting: Chart Settings > Bar Period > Include Columns With No Data. In fact we recommend leaving it disabled as it keeps the chart cleaner"
 			"<br><br>"
-			"Because or else every time the Intraday chart symbol is changed, the Session Times also get modified."
+			"It is recommended to disable this setting: Chart Settings > Session Times > Apply Intra Day Session Times To Intraday Chart.  "
 			"<br><br>"
-			"<strong>New High/Low of Day Telegram Alerts:</strong>"
+			"Because otherwise everytime the Chart Symbol is changed, the Session Times may also get modified."
 			"<br><br>"
-			"This study support sending a study alert when a new high or low price of day is made. We might also add the option of having a study alert trigger when the additional levels in the study are crossed."
+			"<strong>New High/Low of Day and Level Cross Alerts:</strong>"
+			"<br><br>"
+			"This study support sending a study alert when a new high or low price of day is made. It now supports alerts when additional levels from the study are crossed."
 			"<br>"
 			"It is possible to forward these alerts directly to a Telegram chat using either the VerrilloTrading <a href = https://youtu.be/EQZI9pBtDrE target=_blank rel=noopener noreferrer >Telegram Chart Drawing Alerts</a> study or using the built-in Sierra Chart method."
 			"<br><br>"
 			"<strong>General Notes:</strong>"
 			"<br><br>"
-			"For the extra overnight levels to be drawn the user must enable the Evening Session using Chart Settings > Session Times > Use Evening Session and have their Evening Session times set correctly relative to their Day Session times."
-			"<br><br>"
 			"This study has only been tested with Denali Exchange Data Feed on Sierra Chart and not other Data feeds like IQFeed."
 			"<br><br>"
-			"If you encounter issues with the overnight prices not displaying, you can report this to support@verrillotrading.com. This study is open source and there will not be any free ongoing development of it, with the exception of a few items we still want to add. There is no guarantee we will be able to get to any support requests, or if we will consider additional feature requests. "
-			"<br><br>"
-			"If you absolutely need an issue resolved or want to show gratitude for this work you can pay using this donation page:"
-			"<br><br>"
-			"<a href = https://verrillotrading.com/tips target=_blank rel=noopener noreferrer >https://verrillotrading.com/tips</a>"
+			"If you encounter issues with any levels not displaying, you can report this to support@verrillotrading.com. This study is open source and there will not be any free ongoing development of it, with the exception of a few items we may add. There is no guarantee we will be able to get to any support requests, or if we will consider additional feature requests. "
 			"<br><br>"
 			"I genuinely hope you enjoy the study,"
 			"<br><br>"
-			"Good Trading, "
+			"Happy Trading, "
 			"<br><br>"
 			"-Christian"
 			"<br><br>"
@@ -603,6 +1038,15 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		return;
 	}
 
+	if(sc.IsUserAllowedForSCDLLName == false)
+	{
+		if(sc.Index == 0)
+		{
+		  sc.AddMessageToLog("You are not allowed to use this study. Please contact support@verrillotrading.com to obtain free access.",1);
+		}
+    	return;
+	} 
+
 	// do not calculate if chart is still downloading data 
 	if (sc.ChartIsDownloadingHistoricalData(sc.ChartNumber))
 	{
@@ -611,41 +1055,63 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		return;
 	}
 
+	// logging object 
+	SCString msg;
+
+	// Index to assist with persistent variable numbers 
+	int PersistentVariableIndex = 0;
+
 	// Used for remembering if the drawings are hidden 
-	int& HideLevels = sc.GetPersistentIntFast(1);
+	int& HideLevels = sc.GetPersistentIntFast(PersistentVariableIndex++);
 
 	// Other Persistent Variables 
 	// 
 	// used to remember price levels for triggering realtime alerts 
-	double& LowOfDayMemory = sc.GetPersistentDoubleFast(2);
-	double& HighOfDayMemory = sc.GetPersistentDoubleFast(3);
+	double& LowOfDayMemory = sc.GetPersistentDoubleFast(PersistentVariableIndex++);
+	double& HighOfDayMemory = sc.GetPersistentDoubleFast(PersistentVariableIndex++);
 
 	// These are used to remember the levels drawn in real-time 
 	// In order to not draw them again and also modify if necessary
-	int& LowOfDayLineNumberMemory = sc.GetPersistentIntFast(4);
-	int& HighOfDayLineNumberMemory = sc.GetPersistentIntFast(5);
+	int& LowOfDayLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& HighOfDayLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
 
-	int& SessionOpenLineNumberMemory = sc.GetPersistentIntFast(6);
-	int& SessionCloseLineNumberMemory = sc.GetPersistentIntFast(7);
-	int& CMECloseLineNumberMemory = sc.GetPersistentIntFast(8);
-	int& MidnightPriceLineNumberMemory = sc.GetPersistentIntFast(9);
-	int& EUOpenPriceLineNumberMemory = sc.GetPersistentIntFast(10);
-	int& EUClosePriceLineNumberMemory = sc.GetPersistentIntFast(11);
+	int& SessionOpenLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& SessionCloseLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
 
-	// logging object 
-	SCString msg;
+	int& USStocksOpenLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& USStocksCloseLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+
+	int& CMEOpenLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& CMECloseLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+
+	int& EUOpenPriceLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& EUClosePriceLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+
+	int& MidnightPriceLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+
+	int& UTCOpenPriceLineNumberMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+
+	// memory for session times 
+	int& SessionStartTimeMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& SessionEndTimeMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& UseEveningSessionMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& EveningStartTimeMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
+	int& EveningEndTimeMemory = sc.GetPersistentIntFast(PersistentVariableIndex++);
 
 	// Persistent Vector used to save what lines we have drawn, in order
-	// to ensure correct cleanup behaviour
+	// to ensure correct cleanup behaviour 
     std::vector<int>* p_LineNumbers = reinterpret_cast<std::vector<int>*>
-		(sc.GetPersistentPointer(0));
+		(sc.GetPersistentPointer(100));
+
+	// msg.Format("session start mem: %d", SessionStartTimeMemory, UseEveningSessionMemory);
+	// sc.AddMessageToLog(msg,1);
 
 	// First time initialization
     if (p_LineNumbers == NULL) 
 	{
 		// initialize 
         p_LineNumbers = new std::vector<int>;
-        sc.SetPersistentPointer(0, p_LineNumbers);
+        sc.SetPersistentPointer(100, p_LineNumbers);
     }
     else 
 	{
@@ -653,20 +1119,79 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// of acs button after deleting the drawings 
     }
 
+	// INIT SESSION TIMES MEMORY (Assumes the user would never set those end times to 0, which makes no sense)
+	if(SessionEndTimeMemory == 0 && EveningEndTimeMemory == 0)
+	{
+		// init persistent session times 
+		SessionStartTimeMemory = sc.StartTime1;
+		SessionEndTimeMemory = sc.EndTime1;
+
+		UseEveningSessionMemory = sc.UseSecondStartEndTimes;
+
+		EveningStartTimeMemory = sc.StartTime2;
+		EveningEndTimeMemory = sc.EndTime2;
+	}
+
 	// handle last call to function
 	if(sc.LastCallToFunction)
 	{
-		if(p_LineNumbers != 0)
+		if(p_LineNumbers->size() != 0)
 		{
+			// LOGIC FOR DELETE ALL DRAWINGS IN PERSISTENT VECTOR AND CLEAR VECTOR 
+			// sc.AddMessageToLog("we get here last call",1);
+			// int NumDrawings = 0;
+			for(int i = 0; i < p_LineNumbers->size(); i++)
+			{
+				sc.DeleteUserDrawnACSDrawing(sc.ChartNumber, (*p_LineNumbers)[i]);
+				// {
+				// 	msg.Format("LineNumber: %d Deleted!", (*p_LineNumbers)[i]);
+				// 	sc.AddMessageToLog(msg,1);
+
+				// }
+				// else
+				// {
+				// 	sc.AddMessageToLog("not deleted!",1);
+				// }
+			}
+			// msg.Format("Vector Size: %d", p_LineNumbers->size());
+			// sc.AddMessageToLog(msg,1);
+
+			// clear the vector 
+			p_LineNumbers->clear();
+
+			// Then Delete the pointer 
 			delete p_LineNumbers;
-			sc.SetPersistentPointer(0, NULL);
+			sc.SetPersistentPointer(100, NULL);
 		}
+
+		// Reset Persistent Variables 
+		LowOfDayMemory = 0;
+		HighOfDayMemory = 0;
+		LowOfDayLineNumberMemory = 0;
+		HighOfDayLineNumberMemory = 0;
+
+		SessionOpenLineNumberMemory = 0;
+		SessionCloseLineNumberMemory = 0;
+
+		USStocksOpenLineNumberMemory = 0;
+		USStocksCloseLineNumberMemory = 0;
+
+		CMEOpenLineNumberMemory = 0;
+		CMECloseLineNumberMemory = 0;
+
+		EUOpenPriceLineNumberMemory = 0;
+		EUClosePriceLineNumberMemory = 0;
+
+		MidnightPriceLineNumberMemory = 0;
+		UTCOpenPriceLineNumberMemory = 0;
+		return; // so necessary
 	}
 
 	// handle full chart recalculation
 	if(sc.IsFullRecalculation)
 	{
-		// Could empty the vector here and call sc.MenuEventID to redraw all levels 
+		// sc.AddMessageToLog("Full recalc!" ,1);
+		// empty the vector here and call sc.MenuEventID to redraw all levels 
 		if(p_LineNumbers->size() != 0)
 		{
 			// LOGIC FOR DELETE ALL DRAWINGS IN PERSISTENT VECTOR AND CLEAR VECTOR 
@@ -679,6 +1204,1192 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			p_LineNumbers->clear();
 		}
 
+		// find all other instances of this study in this chartbook
+		std::vector<int> ChartsWhereStudyIsFound = FindDuplicateStudiesInSameChartbook_V2(sc, sc.GraphName.GetChars(), msg);
+		if(ChartsWhereStudyIsFound.size() != 0)
+		{
+			// iterate over the list of charts where the study is found 
+			for(int i = 0; i < ChartsWhereStudyIsFound.size(); i++)
+			{
+				// get the study ID of the study in question (other instance of this study)
+				int StudyID = sc.GetStudyIDByName(ChartsWhereStudyIsFound[i], sc.GraphName.GetChars(), 0);
+
+				// check this chart's value for Detect Changes Yes No input value. 
+				int IntegerValue = -1;
+				int GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DetectChangesInputIndex, IntegerValue);
+
+				// If the user has enabled detecting study input changes for the study instance in question
+				if(IntegerValue == 1)
+				{
+					// Detect and Process study input changes here 
+					//
+					// NUM DAYS TO CALCULATE
+					int IntegerValue = -1;
+					int GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, NumDaysInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_NumDaysToCalculate.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, NumDaysInputIndex, i_NumDaysToCalculate.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// DST ON OFF 
+					// check this chart's value for day light savings yes no input value. 
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DSTInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_IsDaylightSavings.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DSTInputIndex, i_IsDaylightSavings.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// DRAW WEEKENDS
+					// Check this chart's value for draw weekend yes no input value. 
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawWeekendsInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawLevelsOnSaturday.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawWeekendsInputIndex, i_DrawLevelsOnSaturday.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// Session Start Times
+					// NOTE: JUST RELY ON CHART LINKING SESSION TIMES FOR THE MOMENT, Instead of changing them dynamically
+					//
+					// double TimeValue = -1;
+					// GetInput = sc.GetChartStudyInputFloat(ChartsWhereStudyIsFound[i], StudyID, SessionStartTimeInputIndex, TimeValue);
+
+					// msg.Format("Time From Float: %ld, Current Study Input: %ld", TimeValue, i_SessionStartTime.GetTime());
+					// sc.AddMessageToLog(msg,1);
+					// //
+					// // If it does not match what is set in this study, set it for that instance 
+					// if(TimeValue != i_SessionStartTime.GetTime())
+					// {
+					// 	int SetInput = sc.SetChartStudyInputFloat(ChartsWhereStudyIsFound[i], StudyID, SessionStartTimeInputIndex, i_SessionStartTime.GetTime());
+
+					// 	// trigger a chart recalc on the other chart and the
+					// 	// persistent variable would change to match the
+					// 	// changed input 
+					// 	sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+					// 	//
+					// 	// Once we have changed the input there is no need to
+					// 	// keep iterating over the chart list
+					// }
+
+					// DRAW SESSION OPEN
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawSessionOpenInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawSessionOpen.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawSessionOpenInputIndex, i_DrawSessionOpen.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					//
+					// DRAW SESSION CLOSE
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawSessionCloseInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawSessionClose.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawSessionCloseInputIndex, i_DrawSessionClose.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// DRAW US STOCK OPEN
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawStocksOpenInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawStocksOpen.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawStocksOpenInputIndex, i_DrawStocksOpen.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// DRAW US STOCK CLOSE
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawStocksCloseInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawStocksClose.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawStocksCloseInputIndex, i_DrawStocksClose.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// DRAW CME OPEN
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawGlobexOpenInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawGlobexOpen.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawGlobexOpenInputIndex, i_DrawGlobexOpen.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// DRAW CME CLOSE
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawGlobexCloseInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawGlobexClose.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawGlobexCloseInputIndex, i_DrawGlobexClose.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// DRAW EUROPE OPEN
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawEuropeOpenInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawEuropeOpen.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawEuropeOpenInputIndex, i_DrawEuropeOpen.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// DRAW EUROPE CLOSE 
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawEuropeCloseInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawEuropeClose.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawEuropeCloseInputIndex, i_DrawEuropeClose.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// DRAW NY MIDNGIHT
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawMidnightInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawMidnightPrice.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawMidnightInputIndex, i_DrawMidnightPrice.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// DRAW UTC MIDNIGHT
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawUTCInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_DrawUTCOpenPrice.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, DrawUTCInputIndex, i_DrawUTCOpenPrice.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// GRAPHICS SETTINGS 
+					// Font Size For Line Drawings 
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, FontSizeInputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_FontSizeForLineText.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, FontSizeInputIndex, i_FontSizeForLineText.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Intraday Low Low Line Color
+					int ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, IntradayHighLowColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_IntradayHighLowColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							IntradayHighLowColor_InputIndex, i_IntradayHighLowColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					
+					// Intraday High Low Line Style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, IntradayHighLowLineStyle_InputIndex, IntegerValue);
+
+					// msg.Format("StringIntValueFromOtherStudy: %d String Value in Current Study: %d", 
+					// IntegerValue, i_IntradayHighLowLineStyle.GetIndex());
+					// sc.AddMessageToLog(msg,1);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_IntradayHighLowLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							IntradayHighLowLineStyle_InputIndex, i_IntradayHighLowLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Intraday High Low Line Width
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, IntradayHighLowLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_IntradayHighLowLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							IntradayHighLowLineWidth_InputIndex, i_IntradayHighLowLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// Session open color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionOpenColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_SessionOpenColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionOpenColor_InputIndex, i_SessionOpenColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Session open line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionOpenLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_SessionOpenLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionOpenLineStyle_InputIndex, i_SessionOpenLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Session open line width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionOpenLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_SessionOpenLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionOpenLineWidth_InputIndex, i_SessionOpenLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					//
+					// Session close color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionCloseColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_SessionCloseColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionCloseColor_InputIndex, i_SessionCloseColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Session close line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionCloseLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_SessionCloseLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionCloseLineStyle_InputIndex, i_SessionCloseLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Session close line width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, SessionCloseLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_SessionCloseLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							SessionCloseLineWidth_InputIndex, i_SessionCloseLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Stocks open color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksOpenColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_USStocksOpenPriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksOpenColor_InputIndex, i_USStocksOpenPriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Stocks open style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksOpenLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_USStocksOpenPriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksOpenLineStyle_InputIndex, i_USStocksOpenPriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// Stocks open width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksOpenLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_USStocksOpenPriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksOpenLineWidth_InputIndex, i_USStocksOpenPriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Stocks close color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksCloseColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_USStocksClosePriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksCloseColor_InputIndex, i_USStocksClosePriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Stocks close line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksCloseLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_USStocksClosePriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksCloseLineStyle_InputIndex, i_USStocksClosePriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Stocks close width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, StocksCloseLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_USStocksClosePriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							StocksCloseLineWidth_InputIndex, i_USStocksClosePriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Globex open color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexOpenColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_CMEOpenPriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexOpenColor_InputIndex, i_CMEOpenPriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Globex open Line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexOpenLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_CMEOpenPriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexOpenLineStyle_InputIndex, i_CMEOpenPriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Globex open width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexOpenLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_CMEOpenPriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexOpenLineWidth_InputIndex, i_CMEOpenPriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Globex close color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexCloseColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_CMEClosePriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexCloseColor_InputIndex, i_CMEClosePriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Globex close Line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexCloseLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_CMEClosePriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexCloseLineStyle_InputIndex, i_CMEClosePriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Globex close width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, GlobexCloseLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_CMEClosePriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							GlobexCloseLineWidth_InputIndex, i_CMEClosePriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Europe Open color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeOpenColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_EuropeOpenColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeOpenColor_InputIndex, i_EuropeOpenColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Europe Open Line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeOpenLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EuropeOpenLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeOpenLineStyle_InputIndex, i_EuropeOpenLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Europe Open width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeOpenLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EuropeOpenLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeOpenLineWidth_InputIndex, i_EuropeOpenLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Europe Close color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeCloseColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_EuropeCloseColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeCloseColor_InputIndex, i_EuropeCloseColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Europe Close Line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeCloseLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EuropeCloseLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeCloseLineStyle_InputIndex, i_EuropeCloseLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Europe Close width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EuropeCloseLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EuropeCloseLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EuropeCloseLineWidth_InputIndex, i_EuropeCloseLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// NY Midnight color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, MidnightColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_MidnightPriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							MidnightColor_InputIndex, i_MidnightPriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// NY Midnight line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, MidnightLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_MidnightPriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							MidnightLineStyle_InputIndex, i_MidnightPriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// NY Midnight width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, MidnightLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_MidnightPriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							MidnightLineWidth_InputIndex, i_MidnightPriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// UTC Midnight color (int)
+					ColorValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, UTCColor_InputIndex, ColorValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(ColorValue != i_UTCOpenPriceColor.GetColor())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							UTCColor_InputIndex, i_UTCOpenPriceColor.GetColor());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//  UTC Midnight Line style
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, UTCLineStyle_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_UTCOpenPriceLineStyle.GetIndex())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							UTCLineStyle_InputIndex, i_UTCOpenPriceLineStyle.GetIndex());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// UTC Midnight width (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, UTCLineWidth_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_UTCOpenPriceLineWidth.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							UTCLineWidth_InputIndex, i_UTCOpenPriceLineWidth.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// ACS Button to Hide PD Levels (Int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, ACSButtonToHideLevels_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_ACSButtonToHideLevels.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							ACSButtonToHideLevels_InputIndex, i_ACSButtonToHideLevels.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// ALERTS
+					// PD High Low Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableNewHighLowAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableNewHighLowAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableNewHighLowAlert_InputIndex, i_EnableNewHighLowAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Session Open Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableSessionOpenAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableSessionOpenAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableSessionOpenAlert_InputIndex, i_EnableSessionOpenAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Session Close Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableSessionCloseAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableSessionCloseAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableSessionCloseAlert_InputIndex, i_EnableSessionCloseAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Stocks Open Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableStocksOpenPriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableStocksOpenPriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableStocksOpenPriceAlert_InputIndex, i_EnableStocksOpenPriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Stocks Close Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableStocksClosePriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableStocksClosePriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableStocksClosePriceAlert_InputIndex, i_EnableStocksClosePriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					//
+					// Globex Open Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableCMEOpenPriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableCMEOpenPriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableCMEOpenPriceAlert_InputIndex, i_EnableCMEOpenPriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// Globex Close Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableCMEClosePriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableCMEClosePriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableCMEClosePriceAlert_InputIndex, i_EnableCMEClosePriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Europe Open Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableEuropeOpenPriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableEuropeOpenPriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableEuropeOpenPriceAlert_InputIndex, i_EnableEuropeOpenPriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+
+					// Europe Close Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableEuropeClosePriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableEuropeClosePriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableEuropeClosePriceAlert_InputIndex, i_EnableEuropeClosePriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// NY Midnight Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableMidnightPriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableMidnightPriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableMidnightPriceAlert_InputIndex, i_EnableMidnightPriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					// UTC Midnight Open Alert Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, EnableUTCPriceAlert_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_EnableUTCMidnightPriceAlert.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							EnableUTCPriceAlert_InputIndex, i_EnableUTCMidnightPriceAlert.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// ---
+					// Alert Number for Study Alerts (int)
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, AlertNumberForAlerts_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_AlertNumberForCrossAlerts.GetInt())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							AlertNumberForAlerts_InputIndex, i_AlertNumberForCrossAlerts.GetInt());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+					//
+					// Alert Only Once Per Bar Yes No
+					IntegerValue = -1;
+					GetInput = sc.GetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, AlertOncePerBar_InputIndex, IntegerValue);
+
+					// If it does not match what is set in this study, set it for that instance 
+					if(IntegerValue != i_AlertOnlyOncePerBar.GetBoolean())
+					{
+						int SetInput = sc.SetChartStudyInputInt(ChartsWhereStudyIsFound[i], StudyID, 
+							AlertOncePerBar_InputIndex, i_AlertOnlyOncePerBar.GetBoolean());
+
+						// trigger a chart recalc on the other chart and the
+						// persistent variable would change to match the
+						// changed input 
+						sc.RecalculateChart(ChartsWhereStudyIsFound[i]);
+						//
+						// Once we have changed the input there is no need to
+						// keep iterating over the chart list
+					}
+				}
+				else
+				{
+					// did not enable detecting for this chart, continue to next chart 
+					continue;
+				}
+			}
+		}
+
 		// Reset Persistent Variables 
 		LowOfDayMemory = 0;
 		HighOfDayMemory = 0;
@@ -687,10 +2398,131 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 		SessionOpenLineNumberMemory = 0;
 		SessionCloseLineNumberMemory = 0;
+
+		USStocksOpenLineNumberMemory = 0;
+		USStocksCloseLineNumberMemory = 0;
+
+		CMEOpenLineNumberMemory = 0;
 		CMECloseLineNumberMemory = 0;
-		MidnightPriceLineNumberMemory = 0;
+
 		EUOpenPriceLineNumberMemory = 0;
 		EUClosePriceLineNumberMemory = 0;
+
+		MidnightPriceLineNumberMemory = 0;
+		UTCOpenPriceLineNumberMemory = 0;
+
+		// only execute this if our persistent variables have already been initialized from 0  
+		if(SessionEndTimeMemory != 0 && EveningEndTimeMemory != 0)
+		{
+			// -------------------
+			// LOOK FOR INPUT OR CHART SETTINGS CHANGES TO SESSION TIMES 
+			// GET THE SESSION START TIME FROM CHART SETTINGS 
+			//
+			// Chart Settings 
+			int SessionStartTime = sc.StartTime1;
+			int SessionEndTime = sc.EndTime1;
+			int UseEveningSession = sc.UseSecondStartEndTimes;
+			int EveningStartTime = sc.StartTime2;
+			int EveningEndTime = sc.EndTime2;
+
+			// START TIME 
+			// The change came from chart settings 
+			if(SessionStartTime != SessionStartTimeMemory)
+			{
+				// change study input setting to match 
+				i_SessionStartTime.SetTime(SessionStartTime);
+
+				// Update Memory 
+				SessionStartTimeMemory = SessionStartTime;
+			}
+			// change came from study input setting
+			else if(i_SessionStartTime.GetTime() != SessionStartTimeMemory)
+			{
+				// change chart settings to match 
+				sc.StartTime1 = i_SessionStartTime.GetTime();
+				
+				// Update Memory 
+				SessionStartTimeMemory = i_SessionStartTime.GetTime();
+			}
+
+			// END TIME 
+			if(SessionEndTime != SessionEndTimeMemory)
+			{
+				// change study input setting to match 
+				i_SessionEndTime.SetTime(SessionEndTime);
+
+				// Update Memory 
+				SessionEndTimeMemory = SessionEndTime;
+			}
+			// change came from study input setting
+			else if(i_SessionEndTime.GetTime() != SessionEndTimeMemory)
+			{
+				// change chart settings to match 
+				sc.EndTime1 = i_SessionEndTime.GetTime();
+				
+				// Update Memory 
+				SessionEndTimeMemory = i_SessionEndTime.GetTime();
+			}
+			
+			// USE EVENING SESSION (YES NO)
+			if(UseEveningSession != UseEveningSessionMemory)
+			{
+				// change study input setting to match chart settings 
+				i_UseEveningSession.SetYesNo(UseEveningSession);
+
+				// Update Memory 
+				UseEveningSessionMemory = UseEveningSession;
+			}
+			// change came from study input setting
+			else if(i_UseEveningSession.GetBoolean() != UseEveningSessionMemory)
+			{
+				// change chart settings to match 
+				sc.UseSecondStartEndTimes = i_UseEveningSession.GetBoolean();
+				
+				// Update Memory 
+				UseEveningSessionMemory = i_UseEveningSession.GetBoolean();
+			}
+
+			// EVENING START TIME 
+			// The change came from chart settings 
+			if(EveningStartTime != EveningStartTimeMemory)
+			{
+				// change study input setting to match 
+				i_EveningSessionStartTime.SetTime(EveningStartTime);
+
+				// Update Memory 
+				EveningStartTimeMemory = EveningStartTime;
+			}
+			// change came from study input setting
+			else if(i_EveningSessionStartTime.GetTime() != EveningStartTimeMemory)
+			{
+				// change chart settings to match 
+				sc.StartTime2 = i_EveningSessionStartTime.GetTime();
+				
+				// Update Memory 
+				EveningStartTimeMemory = i_EveningSessionStartTime.GetTime();
+			}
+
+			// EVENING END TIME 
+			if(EveningEndTime != EveningEndTimeMemory)
+			{
+				// change study input setting to match 
+				i_EveningSessionEndTime.SetTime(EveningEndTime);
+
+				// Update Memory 
+				EveningEndTimeMemory = EveningEndTime;
+			}
+			// change came from study input setting
+			else if(i_EveningSessionEndTime.GetTime() != EveningEndTimeMemory)
+			{
+				// change chart settings to match 
+				sc.EndTime2 = i_EveningSessionEndTime.GetTime();
+				
+				// Update Memory 
+				EveningEndTimeMemory = i_EveningSessionEndTime.GetTime();
+			}
+
+		}
 		return;
 	}
 
@@ -758,6 +2590,10 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// Or else it results in many drawings being drawn incorrectly due to the Day being wrong.
 	}
 
+	// SCString ChartTZ = sc.GetChartTimeZone(sc.ChartNumber);
+	// msg.Format("Chart Timezone: %s", ChartTZ.GetChars());
+	// sc.AddMessageToLog(msg,1);
+
 	//  we start by putting in those times in UTC time then converting them to the chart timezone 
 	//
 	//  8:00 AM London Time = EU OPEN
@@ -771,42 +2607,74 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	// Set those specific times using either a sierra chart function or manually 
 	// convert the date time of the record in
 	
-	SCDateTime MidnightPriceTime, CMECloseTime, EUOpenTime, EUCloseTime;
+	// additional times 
+	SCDateTime USStocksOpenTime, 
+			   USStocksCloseTime, 
+			   CMEOpenTime, 
+			   CMECloseTime, 
+			   EUOpenTime, 
+			   EUCloseTime, 
+			   MidnightPriceTime, 
+			   UTCOpenPriceTime;
 										   
 	// Maybe instead of hardcoding these we can set them relative to the session open or close times. 
 	// 
 	// For now I will adjust all of these times down by one hour and use the input setting to account for this 
-	MidnightPriceTime.SetDate(CurrentDay);
+	USStocksOpenTime.SetDate(CurrentDay);
+	USStocksCloseTime.SetDate(CurrentDay);
+	CMEOpenTime.SetDate(CurrentDay);
 	CMECloseTime.SetDate(CurrentDay);
 	EUOpenTime.SetDate(CurrentDay);
 	EUCloseTime.SetDate(CurrentDay);
+	MidnightPriceTime.SetDate(CurrentDay);
+	UTCOpenPriceTime.SetDate(CurrentDay);
+
+	// TODO: Better algo to determine if we are in dst or not 
+	//
 	if(i_IsDaylightSavings.GetBoolean())
 	{
-		// Adjusted times for when New York observes daylight savings time 
-		MidnightPriceTime.SetTimeHMS(4,0,0); // 4:00 AM UTC Time (04:00:00)
-												//
+		// Adjusted times for daylight savings time 
+		USStocksOpenTime.SetTimeHMS(13,30,0); // 13:30 PM UTC Time
+		USStocksCloseTime.SetTimeHMS(20,0,0); // 20:00 PM UTC Time
+											  //
+		CMEOpenTime.SetTimeHMS(22,0,0); // 22:00 PM UTC Time 
 		CMECloseTime.SetTimeHMS(21,0,0); // 21:00 PM UTC Time 
 										 //
 		EUOpenTime.SetTimeHMS(7,0,0); // 7:00 AM UTC Time 
-									  //
-		EUCloseTime.SetTimeHMS(15,30,0); // 15:30 PM UTC Time  (15:59:59
+		EUCloseTime.SetTimeHMS(15,30,0); // 15:30 PM UTC Time  
+										 //
+		MidnightPriceTime.SetTimeHMS(4,0,0); // 4:00 AM UTC Time (04:00:00)
+											 //
+		UTCOpenPriceTime.SetTimeHMS(0,0,0); // 
+		// utc the same daylight savings or not 
 	}
 	else
 	{
-
-		MidnightPriceTime.SetTimeHMS(5,0,0); // 5:00 AM UTC Time (05:00:00)
-												//
+		USStocksOpenTime.SetTimeHMS(14,30,0); // 14:30 PM UTC Time
+		USStocksCloseTime.SetTimeHMS(21,0,0); // 21:00 PM UTC Time
+											  //
+		CMEOpenTime.SetTimeHMS(23,0,0); // 23:00 PM UTC Time 
 		CMECloseTime.SetTimeHMS(22,0,0); // 22:00 PM UTC Time 
 										 //
 		EUOpenTime.SetTimeHMS(8,0,0); // 8:00 AM UTC Time 
-									  //
-		EUCloseTime.SetTimeHMS(16,30,0); // 16:30 PM UTC Time  (15:59:59
-
+		EUCloseTime.SetTimeHMS(16,30,0); // 16:30 PM UTC Time  
+										 //
+		MidnightPriceTime.SetTimeHMS(5,0,0); // 5:00 AM UTC Time (05:00:00)
+											 //
+		// Either 0,0,0 or 23,0,0, because chart timezone is impacted by dst
+		UTCOpenPriceTime.SetTimeHMS(23,0,0); // 0:00 AM UTC Time (00:00:00)
 	}
 	
 	// UTC back to chart timezone 
-	SCDateTimeMS ConvertedMidnightPrice = 
-		sc.ConvertDateTimeToChartTimeZone(MidnightPriceTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedUSStocksOpenTime = 
+		sc.ConvertDateTimeToChartTimeZone(USStocksOpenTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedUSStocksCloseTime = 
+		sc.ConvertDateTimeToChartTimeZone(USStocksCloseTime, TIMEZONE_UTC);
+
+	SCDateTimeMS ConvertedCMEOpenTime = 
+		sc.ConvertDateTimeToChartTimeZone(CMEOpenTime, TIMEZONE_UTC);
 
 	SCDateTimeMS ConvertedCMECloseTime = 
 		sc.ConvertDateTimeToChartTimeZone(CMECloseTime, TIMEZONE_UTC);
@@ -817,15 +2685,21 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	SCDateTimeMS ConvertedEUCloseTime = 
 		sc.ConvertDateTimeToChartTimeZone(EUCloseTime, TIMEZONE_UTC);
 
+	SCDateTimeMS ConvertedMidnightPrice = 
+		sc.ConvertDateTimeToChartTimeZone(MidnightPriceTime, TIMEZONE_UTC);
+	
+	SCDateTimeMS ConvertedUTCOpenPrice = 
+		sc.ConvertDateTimeToChartTimeZone(UTCOpenPriceTime, TIMEZONE_UTC);
+
 	// Calculate the starting day for high/lows
-	int NumDaysToCalculateHighLow = i_NumDaysToCalculateHighLow.GetInt();
+	int NumDaysToCalculate = i_NumDaysToCalculate.GetInt();
 
 	// get the start dates for calculation
-	int HighLowStartDate = CurrentDay - NumDaysToCalculateHighLow;
+	int HighLowStartDate = CurrentDay - NumDaysToCalculate;
 	
 	// debug 
 	// msg.Format("Current Day: %d HighLow Start Date: %d NumDaysCalculateHighLow: %d", 
-	// CurrentDay, HighLowStartDate, NumDaysToCalculateHighLow);
+	// CurrentDay, HighLowStartDate, NumDaysToCalculate);
 	// sc.AddMessageToLog(msg,1);
 
 	// Assign that day to SCDateTime variables so we can call the next function 
@@ -835,7 +2709,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	int HighLowStartDateTimeIndex = 
 		sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowStartDateTime);
 
-	// DONE: Keep track of the day, when the day moves to the net day, stop
+	// DONE: Keep track of the day, when the day moves to the next day, stop
 	// redrawing the old high lows and start calculating for a new high low 
 	//
 	// The high lows should only be drawn once the function has iterated through all the bars 
@@ -854,6 +2728,9 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	// remember the bar indexes 
 	int LowIndex = 0;
 	int HighIndex = 0;
+
+	int LastDrawnHighLowDate = 0; 
+	bool HighLowPriceDrawn = 0;
 
 	// SCDateTime Date (number of days since 1899) 
 	// used to determine if we need to be looking for open/close prices 
@@ -884,36 +2761,52 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	}
 
 	// -----------------------------------
-	// Midnight Price Setup
-	int MidnightPriceInSeconds = ConvertedMidnightPrice.GetTimeInSeconds();
-	int LastDrawnMidnightPriceDate = 0; 
-	bool MidnightPriceDrawn = 0;
-
+	//  Variables for US Stocks Open Time 
+	int USStocksOpenTimeInSeconds = ConvertedUSStocksOpenTime.GetTimeInSeconds();
+	int LastDrawnUSStocksOpenDate = 0; 
+	bool USStocksOpenPriceDrawn = 0;
+	// -----------------------------------
+	//  Variables for US Stocks Close Time 
+	int USStocksCloseTimeInSeconds = ConvertedUSStocksCloseTime.GetTimeInSeconds();
+	int LastDrawnUSStocksCloseDate = 0; 
+	bool USStocksClosePriceDrawn = 0;
+	// -----------------------------------
+	//  Variables for CME Open Time 
+	int CMEOpenTimeInSeconds = ConvertedCMEOpenTime.GetTimeInSeconds();
+	int LastDrawnCMEOpenDate = 0; 
+	bool CMEOpenPriceDrawn = 0;
 	//-------------------------------------
-	//  Same variables for CME Close Time 
+	//  Variables for CME Close Time 
 	int CMECloseTimeInSeconds = ConvertedCMECloseTime.GetTimeInSeconds();
 	int LastDrawnCMECloseDate = 0; 
 	bool CMEClosePriceDrawn = 0;
 	// ------------------------------------
-	//
-	//  Same Variables for EU Open time 
+	//  Variables for EU Open time 
 	int EUOpenTimeInSeconds = ConvertedEUOpenTime.GetTimeInSeconds();
 	int LastDrawnEUOpenDate = 0; 
 	bool EUOpenPriceDrawn = 0;
 	// ------------------------------------
-
-	// Same Variables for EU Close time 
+	// Variables for EU Close time 
 	int EUCloseTimeInSeconds = ConvertedEUCloseTime.GetTimeInSeconds();
 	int LastDrawnEUCloseDate = 0; 
 	bool EUClosePriceDrawn = 0;
 	// ------------------------------------
-	
+	// Variables for Midnight Price 
+	int MidnightPriceInSeconds = ConvertedMidnightPrice.GetTimeInSeconds();
+	int LastDrawnMidnightPriceDate = 0; 
+	bool MidnightPriceDrawn = 0;
+	// -----------------------------------
+	// Variables for UTC Open Price 
+	int UTCOpenPriceInSeconds = ConvertedUTCOpenPrice.GetTimeInSeconds();
+	int LastDrawnUTCOpenPriceDate = 0; 
+	bool UTCOpenPriceDrawn = 0;
+	//
 	// Variable used for passing in line names for line labels 
 	SCString LineName = "";
 
 	
+	// LINES GET DRAWN IF THEY DO NOT EXIST OR IF ACS BUTTON IS EXPLICITLY PRESSED 
 	// ACS REDRAW BUTTON SCOPE
-	//
 	// Pressing this ACS Button will Draw or Delete and Redraw all lines that
 	// this study drew
 	if (sc.MenuEventID != 0 && sc.MenuEventID == i_ACSButtonToDrawLevels.GetInt()
@@ -941,168 +2834,479 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			p_LineNumbers->clear();
 		}
 
+		// TESTING CODE HERE THAT RUNS ON EVERY TICK 
+		//-------------------
+		// // get the session start and end time variables 
+		// int st1 = sc.StartTime1;
+		// int et1 = sc.EndTime1;
 
+		// // TODO: Use Evening Session Yes No 
+		// if(sc.UseSecondStartEndTimes)
+		// {
+		// 	// handle handle overnight start end times 
+		// 	int st2 = sc.StartTime2;
+		// 	int et2 = sc.EndTime2;
+
+		// }
+
+		// // Set the time into a SCDateTime variable for display 
+		// SCDateTime StartTime;
+		// StartTime.SetTime(st1);
+
+		// // define integers to obtain our time 
+		// int Hour, Minute, Second;
+		// StartTime.GetTimeHMS(Hour, Minute, Second);
+
+		// // Format the text for the image file name 
+		// // The source string combined with the current date time 
+		// msg.Format("start time: %d, converted start time: %d-%d-%d", st1, Hour, Minute, Second);
+
+		// // msg.Format("start time: %d end time: %d", st1, et1);
+		// sc.AddMessageToLog(msg,1);
+
+
+		// New Loop Iterating over a set number of days for drawing historical high lows maing use of this function
+		// sc.GetOHLCForDate(double Date, float& Open, float& High, float& Low, float& Close)
+		for(int Index = HighLowStartDate; Index < CurrentDay+1; Index++)
+		{
+			// This loop setup only iterates over historical days not the curreny day because we handle that one separately. 
+			//
+			// Get DateTime from Day 
+			// set day and start time 
+			SCDateTime HighLowStartDateTime(Index,0);
+
+			// reset these 
+			HighIndex = 0;
+			LowIndex = 0;
+
+			// msg.Format("Day: %d CurrentDay: %d", Index, CurrentDay);
+			// sc.AddMessageToLog(msg,1);
+
+			// Get day of the week 
+			SCDateTime TradingDayDate(sc.GetTradingDayDate(Index));
+			int DayOfWeek = TradingDayDate.GetDayOfWeek();
+
+			// msg.Format("DayOfWeek: %d", DayOfWeek);
+			// sc.AddMessageToLog(msg,1);
+			//
+			// Get OHLC RTH Hours 
+			float Open, High, Low, Close, NextOpen;
+			// sc.GetOHLCForDate(HighLowStartDateTime, Open, High, Low, Close);
+
+			// Find the bar index of the high and low 
+			//
+			// This code needs to be moved to the bottom after we draw our levels. 
+			// skip saturday 
+			//
+			// SCDateTime HighLowStartDateTime(CurrentBarDate -2,0);
+
+			// set day end time 
+			SCDateTime DayEndTime;
+			DayEndTime.SetTimeHMS(23,59,59);
+			SCDateTime HighLowEndDateTime(Index, DayEndTime.GetTimeInSeconds()); 
+
+			// DEBUG 
+			// get the year month and day from SCDateTimeVariable
+			int Y, M, D, h, m, s;
+			HighLowStartDateTime.GetDateTimeYMDHMS(Y,M,D, h, m, s);
+			// msg.Format("Day: %d Day of Week Start DateTime: %d %d_%d_%d-%d_%d_%d",Index, DayOfWeek, Y,M,D, h, m, s);
+			// sc.AddMessageToLog(msg,1);
+
+			HighLowEndDateTime.GetDateTimeYMDHMS(Y,M,D, h, m, s);
+
+			// msg.Format("Day: %d Day of Week End DateTime: %d %d_%d_%d-%d_%d_%d",Index, DayOfWeek, Y,M,D, h, m, s);
+			// sc.AddMessageToLog(msg,1);
+
+			// Better function can get high low for total day instead of just rth 
+			sc.GetOHLCOfTimePeriod(HighLowStartDateTime, HighLowEndDateTime, Open, High, Low, Close, NextOpen);
+
+			// Day Start Bar Index 
+			int DayStartBarIndex = sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowStartDateTime);
+
+			// Get Day End Bar Index 
+			int DayEndBarIndex = sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowEndDateTime);
+
+			// iterate over the chart bars for this day to find the bar indexes that contain high and lows 
+			for(int i = DayStartBarIndex; i < DayEndBarIndex+1; i++)
+			{
+				// get the high of the day (get the first one in case we have a double top)
+				if(sc.High[i] == High && HighIndex == 0)
+				{
+					// we found the index of that high price 
+					HighIndex = i;
+				}
+
+				// get the low of the day (get the first one in case we have a double bottom)
+				if(sc.Low[i] == Low && LowIndex == 0)
+				{
+					LowIndex = i;
+				}
+			}
+
+			// Could use this to examine the high and low outside of RTH and determine of those levels should replace our high lows: 
+			// sc.GetOHLCOfTimePeriod()
+			//
+			// i_DrawOverightHighLowsSeparate
+			// i_UseOvernightHighLow
+
+			// Debug 
+			// msg.Format("Day: %d Day of Week %d O: %f, H: %f, L: %f , C: %f LowIndex: %d HighIndex: %d",Index, DayOfWeek, Open,High,Low,Close, LowIndex, HighIndex);
+			// sc.AddMessageToLog(msg,1);
+
+			int SecType = sc.SecurityType();
+			// Different logic for different sec types Because some don't show any data for Saturday Sunday 
+
+			// 1 futures: Skip Saturday 
+			// 2 stock: Skip Saturday and Sunday 
+			// 3 forex/cfds/crypto: Skip Saturday (if input is enabled) but always draw on Sunday 
+			//
+			// DONE: TEST NEW LOGIC ON DIFFERENT SYMBOLS GOING INTO WEEKEND DATA 
+			if(SecType == 1) // futures 
+			{
+				if(DayOfWeek == SATURDAY)
+				{
+					// sc.AddMessageToLog("IS saturday!",1);
+
+					// Simply don't draw
+					// Index++;
+					continue;
+				}
+				// else if(DayOfWeek == SUNDAY)
+				// {
+
+
+				// }
+			}
+			else if(SecType == 2) // stock 
+			{
+				if(DayOfWeek == SATURDAY)
+				{
+					// sc.AddMessageToLog("Stock IS saturday!",1);
+
+					// Simply don't draw
+					// Index++;
+					continue;
+				}
+				else if(DayOfWeek == SUNDAY)
+				{
+					// sc.AddMessageToLog("Stock IS Sunday!",1);
+					// Simply don't draw
+					continue;
+				}
+
+			}
+			else if(SecType == 3) // forex 
+			{
+				// Looks good 
+				if(i_DrawLevelsOnSaturday.GetBoolean() == false)
+				{
+					if(DayOfWeek == SATURDAY)
+					{
+						// sc.AddMessageToLog("IS saturday!",1);
+
+						// Simply don't draw
+						// Index++;
+						continue;
+					}
+					// else if(DayOfWeek == SUNDAY)
+					// {
+					// 	// sc.AddMessageToLog("IS Sunday!",1);
+					// }
+				}
+				else
+				{
+					// do nothing and keep drawing on saturday 
+				}
+			}
+
+			// draw High and Low 
+			s_UseTool LowOfDay;
+
+			// User Drawn Drawing
+			LowOfDay.AddAsUserDrawnDrawing = 1;
+			LowOfDay.AllowCopyToOtherCharts = 1;
+			LowOfDay.LockDrawing = 1;
+
+			// LowOfDay.AllowSaveToChartbook = 1;
+			LowOfDay.ChartNumber = sc.ChartNumber;
+
+			LowOfDay.LineNumber = -1;  
+
+			LowOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			LowOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
+			LowOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
+			LowOfDay.DisplayHorizontalLineValue = 1;
+			LowOfDay.TransparentLabelBackground = 1;
+
+			// Price Value
+			LowOfDay.BeginValue = Low;
+			LowOfDay.EndValue = LowOfDay.BeginValue;
+
+			// to check this 
+			// GET BAR INDEX 
+			LowOfDay.BeginIndex = LowIndex;
+			LowOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			LowOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
+			LowOfDay.Region = sc.GraphRegion;
+			LowOfDay.Color = i_IntradayHighLowColor.GetColor();
+
+			LowOfDay.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+
+			// Date Time Object 
+			SCDateTime DrawingStartDate;
+
+			// Convert bar index into a date time variable, number of days since 1899
+			DrawingStartDate = sc.BaseDateTimeIn[LowIndex].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "L";
+
+			// fix line labels 
+			VT_FixLineLabels(Month, Day, LowOfDay, msg, Last,LineName);
+
+			// draw 
+			sc.UseTool(LowOfDay);
+
+			// remember 
+			p_LineNumbers->push_back(LowOfDay.LineNumber);
+
+			// save low of day into memory to be alerted on new low of day 
+			LowOfDayLineNumberMemory = LowOfDay.LineNumber;
+			LowOfDayMemory = LowOfDay.BeginValue;
+
+			// sc.AddMessageToLog("Low drawn!",1);
+			//
+			// msg.Format("Low Drawn! Index: %d Price: %f HighLowStartDateTimeIndex: %d, Index: %d", LowIndex, LowOfDay.BeginValue, HighLowStartDateTimeIndex, Index);
+			// sc.AddMessageToLog(msg,1);
+
+
+			// ---------------------------------------------------------------------
+			// Now do High of day 
+			s_UseTool HighOfDay;
+
+			// User Drawn Drawing
+			HighOfDay.AddAsUserDrawnDrawing = 1;
+			HighOfDay.AllowCopyToOtherCharts = 1;
+			HighOfDay.LockDrawing = 1;
+			//
+			// HighOfDay.AllowSaveToChartbook = 1;
+			//
+			HighOfDay.ChartNumber = sc.ChartNumber;
+			//
+			HighOfDay.LineNumber = -1;  
+
+			HighOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			HighOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
+			HighOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
+			HighOfDay.DisplayHorizontalLineValue = 1;
+			HighOfDay.TransparentLabelBackground = 1;
+
+			// Price Value 
+			HighOfDay.BeginValue = High;
+			HighOfDay.EndValue = HighOfDay.BeginValue;
+
+			// GET BAR INDEX 
+			HighOfDay.BeginIndex = HighIndex;
+			HighOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			HighOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
+			HighOfDay.Region = sc.GraphRegion;
+
+			HighOfDay.Color = i_IntradayHighLowColor.GetColor();
+			HighOfDay.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			DrawingStartDate = sc.BaseDateTimeIn[HighIndex].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "H";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, HighOfDay, msg, Last, LineName);
+			// draw 
+			sc.UseTool(HighOfDay);
+			// remember 
+			p_LineNumbers->push_back(HighOfDay.LineNumber);
+
+			// save low of day into memory to be alerted on new low of day 
+			HighOfDayLineNumberMemory = HighOfDay.LineNumber;
+			HighOfDayMemory = HighOfDay.BeginValue;
+
+			// sc.AddMessageToLog("High drawn!",1);
+			// ESSENTIAL RESET VARIABLES 
+			// Set variables to ensure we only get here again on the next day 
+			// LastDrawnHighLowDate = sc.BaseDateTimeIn[Index].GetDate();
+			// HighLowPriceDrawn = 1;
+
+		}
+
+		// we need this for certain close prices 
+		int IDSTU = sc.IntradayDataStorageTimeUnit;
+
+		// Get bar period to get the number of seconds per bar for a time based chart 
+		n_ACSIL::s_BarPeriod r_BarPeriod;
+		sc.GetBarPeriodParameters(r_BarPeriod);
+
+		int SecondsPerBar = 0;
+		// if it is a time based chart 
+		if(r_BarPeriod.IntradayChartBarPeriodType == 0)
+		{
+			SecondsPerBar = r_BarPeriod.IntradayChartBarPeriodParameter1;
+		}
+		// We are set to a daily chart therefore use .dly
+		// NOTE: The code for HIGH LOW is newer and simpler than the code in
+		// this following for loop. 
+		//
+		// This for loop iterates over every chart bar in our range to achieve
+		// bar level precision. Complications can occur with weekend levels but
+		// right now we have no observed any. 
+		//
 		// Iterate from the starting point until end of the chart 
 		for(int Index = HighLowStartDateTimeIndex; Index < sc.ArraySize; Index++)
 		{
 			// Get the date
 			CurrentBarDate = sc.BaseDateTimeIn.DateAt(Index);
 
-			// draw only one drawing per day 
-			if(CurrentBarDate > HighLowStartDate)
-			{
-				// Check input setting for draw on weekend
-				if(i_DrawLevelsOnWeekend.GetBoolean() == false)
-				{
-					// check if it is sunday 
-					if(sc.BaseDateTimeIn[Index].IsSunday() == 1
-						|| sc.BaseDateTimeIn[Index].IsSaturday() == 1)
-					{
-						// msg.Format("Is Sunday CurrentBarDate: %d", CurrentBarDate);
-						// sc.AddMessageToLog(msg,1);	
-
-						HighLowStartDate++;
-						continue;
-					}
-				}
-
-				// we are now on a new day 
-				//
-				// draw stuff and increment variables 
-				s_UseTool LowOfDay;
-
-				// LowOfDay.AddAsUserDrawnDrawing = 1;
-				LowOfDay.AllowCopyToOtherCharts = 1;
-				LowOfDay.AllowSaveToChartbook = 1;
-				LowOfDay.ChartNumber = sc.ChartNumber;
-
-				LowOfDay.LineNumber = -1;  
-
-				LowOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-				LowOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
-				LowOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
-				LowOfDay.DisplayHorizontalLineValue = 1;
-
-				// Price Value
-				LowOfDay.BeginValue = sc.Low[LowIndex];
-				LowOfDay.EndValue = LowOfDay.BeginValue;
-
-				// GET BAR INDEX 
-				LowOfDay.BeginIndex = LowIndex;
-				LowOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-				LowOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
-				LowOfDay.Region = sc.GraphRegion;
-
-				LowOfDay.Color = i_IntradayHighLowColor.GetColor();
-
-				// Code used for Fixing Line Labels 
-
-				// Date Time Object 
-				SCDateTime DrawingStartDate;
-
-				// Convert bar index into a date time variable, number of days since 1899
-				DrawingStartDate = sc.BaseDateTimeIn[LowIndex].GetDate();
-				
-				// get the year month and day from SCDateTimeVariable
-				int Year, Month, Day;
-				DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-				// Assign the line name for this drawing and pass to function
-				LineName = "L";
-
-				// fix line labels 
-				VT_FixLineLabels(Month, Day, LowOfDay, msg, Last,LineName);
-
-				// draw 
-				sc.UseTool(LowOfDay);
-
-				// remember 
-				p_LineNumbers->push_back(LowOfDay.LineNumber);
-
-				// ---------------------------------------------------------------------
-				// Now do High of day 
-				s_UseTool HighOfDay;
-
-				// HighOfDay.AddAsUserDrawnDrawing = 1;
-				HighOfDay.AllowCopyToOtherCharts = 1;
-				HighOfDay.AllowSaveToChartbook = 1;
-				HighOfDay.ChartNumber = sc.ChartNumber;
-				//
-				HighOfDay.LineNumber = -1;  
-
-				HighOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-				HighOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
-				HighOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
-				HighOfDay.DisplayHorizontalLineValue = 1;
-
-				// Price Value 
-				HighOfDay.BeginValue = sc.High[HighIndex];
-				HighOfDay.EndValue = HighOfDay.BeginValue;
-
-				// GET BAR INDEX 
-				HighOfDay.BeginIndex = HighIndex;
-				HighOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-				HighOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
-				HighOfDay.Region = sc.GraphRegion;
-
-				HighOfDay.Color = i_IntradayHighLowColor.GetColor();
-
-				// Code used for Fixing Line Labels 
-				
-				// Convert bar index into a date time variable, number of days since 1899
-				DrawingStartDate = sc.BaseDateTimeIn[HighIndex].GetDate();
-				
-				// get the year month and day from SCDateTimeVariable
-				DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-				// Assign the line name for this drawing and pass to function
-				LineName = "H";
-
-				// Call fix line labels 
-				VT_FixLineLabels(Month, Day, HighOfDay, msg, Last, LineName);
-
-				sc.UseTool(HighOfDay);
-				p_LineNumbers->push_back(HighOfDay.LineNumber);
-
-				// --------------------------------------------------
-				// reset high and low 
-				High = DefaultHighValue;
-				Low = DefaultLowValue;
-
-				HighLowStartDate++; // increment starting date 
-			}
-
-			// get the high of the day 
-			if(High < sc.High[Index])
-			{
-				High = sc.High[Index];
-				HighIndex = Index;
-			}
-
-			// get the low of the day 
-			if(Low > sc.Low[Index])
-			{
-				Low = sc.Low[Index];
-				LowIndex = Index;
-			}
-
 			// Get Start and End Time of the Current Bar 
-			// CurrentBarStartTime = sc.BaseDateTimeIn[Index].GetTime();
-			// CurrentBarEndTime = sc.BaseDataEndDateTime[Index].GetTime();
-
-			// other syntax 
 			CurrentBarStartTime = sc.BaseDateTimeIn.TimeAt(Index);
 			CurrentBarEndTime = sc.BaseDataEndDateTime.TimeAt(Index);
 
 			// useful debug 
-			// msg.Format("SessionEndTimeInSeconds: %d CurrentBarStartTime: %d CurrentBarEndTime: %d", 
-			// 	SessionEndTimeInSeconds, CurrentBarStartTime,CurrentBarEndTime);
+			// msg.Format("CME Close Time Seconds: %d CurrentBarStartTime: %d CurrentBarEndTime: %d", 
+			// 	CMECloseTimeInSeconds, CurrentBarStartTime,CurrentBarEndTime);
 			// sc.AddMessageToLog(msg,1);
 
 			// ----------------------------------------------------------------------
-			// LOGIC FOR SETTLEMENT PRICE 
+			// START SESSION OPEN TIME LOGIC 
+			if(i_DrawSessionOpen.GetInt() == 1)
+			{
+				// if user chose to enable Saturday levels or not 
+				if(i_DrawLevelsOnSaturday.GetBoolean() == false)
+				{
+					// if we are saturday 
+					if(sc.BaseDateTimeIn[Index].IsSaturday() == 1)
+					{
+						if(CurrentBarDate >= LastDrawnOpenDate)
+						{
+							// NECESSARY: only increment indexes if CurrentBarDate is Greater than or Equal to Last Drawn Open Date 
+							//
+							// Increment and set
+							LastDrawnOpenDate++;
+							SessionOpenPriceDrawn = 1;
+							Index++;
+
+							// msg.Format("1 Current Bar Date: %d Last Drawn Date: %d", CurrentBarDate, LastDrawnOpenDate);
+							// sc.AddMessageToLog(msg,1);
+							continue;
+						}
+					}
+				}
+				// logic to reset looking for new session open price 
+				if(CurrentBarDate > LastDrawnOpenDate && SessionOpenPriceDrawn == 1)
+				{
+					SessionOpenPriceDrawn = 0;
+				}
+
+				// only looks for the openprice if the open price 
+				// on the day has not already been drawn 
+				if(SessionOpenPriceDrawn == 0)
+				{
+					// msg.Format("2 Current Bar Date: %d", CurrentBarDate);
+					// msg.Format("2 Current Bar Date: %d Last Drawn Date: %d", CurrentBarDate, LastDrawnOpenDate);
+					// sc.AddMessageToLog(msg,1);
+					// Check if Session End Time exists within the boundaries of our bar 
+					bool IsWithinBarTime = 
+					(SessionStartTimeInSeconds >= CurrentBarStartTime && 
+					 SessionStartTimeInSeconds <= CurrentBarEndTime);
+
+					if(IsWithinBarTime)
+					{
+						// we're on current settlement bar
+
+						// Draw it using our regular drawing tool 
+						s_UseTool SessionOpen;
+
+						// User Drawn Drawings 
+						SessionOpen.AddAsUserDrawnDrawing = 1;
+						SessionOpen.AllowCopyToOtherCharts = 1;
+						SessionOpen.LockDrawing = 1;
+
+						// SessionOpen.AllowSaveToChartbook = 1;
+						SessionOpen.ChartNumber = sc.ChartNumber;
+						SessionOpen.LineNumber = -1;  
+
+						SessionOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+
+						SessionOpen.LineWidth = i_SessionOpenLineWidth.GetInt();
+						SessionOpen.LineStyle = static_cast<SubgraphLineStyles>(i_SessionOpenLineStyle.GetIndex());
+						SessionOpen.DisplayHorizontalLineValue = 1;
+
+						// Price Value 
+						SessionOpen.BeginValue = sc.Open[Index];
+						SessionOpen.EndValue = SessionOpen.BeginValue;
+
+						// GET BAR INDEX 
+						SessionOpen.BeginIndex = Index;
+						SessionOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+						SessionOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+						SessionOpen.Region = sc.GraphRegion;
+
+						SessionOpen.Color = i_SessionOpenColor.GetColor();
+						SessionOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+						// Code used for Fixing Line Labels 
+						
+						// Convert bar index into a date time variable, number of days since 1899
+						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+						
+						// get the year month and day from SCDateTimeVariable
+						int Year, Month, Day;
+						DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+						// Assign the line name for this drawing and pass to function
+						LineName = "";
+
+						// Call fix line labels 
+						VT_FixLineLabels(Month, Day, SessionOpen, msg, Last, LineName);
+
+						sc.UseTool(SessionOpen);
+						p_LineNumbers->push_back(SessionOpen.LineNumber);
+
+						//-----------------------------------
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnOpenDate = sc.BaseDateTimeIn[Index].GetDate();
+						SessionOpenPriceDrawn = 1;
+
+						// if this drawing is on the current day
+						if(CurrentDay == DrawingStartDate && SessionStartTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							SessionOpenLineNumberMemory = SessionOpen.LineNumber;
+						}
+					}
+				}
+				// Insert code here for weekend handling reset 
+				// Check input setting for draw on weekend
+			}
+			// END SESSION OPEN LOGIC 
+			//
+			// LOGIC FOR Session Close Price 
 			if(i_DrawSessionClose.GetInt() == 1)
 			{
 				// if we are on a new day and settlement price has 
@@ -1130,19 +3334,23 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Draw it using our regular drawing tool 
 						s_UseTool SessionClose;
 
-						// SessionClose.AddAsUserDrawnDrawing = 1;
+						// User Drawn Drawings 
+						//
+						SessionClose.AddAsUserDrawnDrawing = 1;
 						SessionClose.AllowCopyToOtherCharts = 1;
-						SessionClose.AllowSaveToChartbook = 1;
+						SessionClose.LockDrawing = 1;
+
+						// SessionClose.AllowSaveToChartbook = 1;
 						SessionClose.ChartNumber = sc.ChartNumber;
 						SessionClose.LineNumber = -1;  
 
 						SessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						SessionClose.LineWidth = i_SettlementPriceLineWidth.GetInt();
-						SessionClose.LineStyle = LINESTYLE_DASHDOTDOT;
+						SessionClose.LineWidth = i_SessionCloseLineWidth.GetInt();
+						SessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_SessionCloseLineStyle.GetIndex());
 						SessionClose.DisplayHorizontalLineValue = 1;
 
 						// Price Value 
-						SessionClose.BeginValue = sc.Open[Index];
+						SessionClose.BeginValue = sc.Close[Index-1];
 						SessionClose.EndValue = SessionClose.BeginValue;
 
 						// GET BAR INDEX 
@@ -1152,7 +3360,9 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						SessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
 						SessionClose.Region = sc.GraphRegion;
 
-						SessionClose.Color = i_SettlementPriceColor.GetColor();
+						SessionClose.Color = i_SessionCloseColor.GetColor();
+
+						SessionClose.FontSize = i_FontSizeForLineText.GetInt();
 
 						// Code used for Fixing Line Labels 
 						
@@ -1191,10 +3401,622 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						}
 					}
 					//----------------------------
-					// End Settlement Price Logic 
+					// End Session Close Price Logic 
 				}
 			}
 
+			// START US STOCKS OPEN LOGIC 
+			if(i_DrawStocksOpen.GetInt() == 1)
+			{
+				// START US Stocks Open LOGIC 
+				if(CurrentBarDate > LastDrawnUSStocksOpenDate && USStocksOpenPriceDrawn == 1)
+				{
+					USStocksOpenPriceDrawn = 0;
+				}
+
+				// only looks for the open price if the open price 
+				// on the day has not already been drawn, DON'T DRAW THIS ON WEEKEND 
+				if(USStocksOpenPriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSunday() != 1 
+					&& sc.BaseDateTimeIn[Index].IsSaturday() != 1)
+				{
+					// ONLY DRAW THIS IF SESSION START TIME IS NOT ALREADY SET TO THIS TIME 
+					if(SessionStartTimeInSeconds != USStocksOpenTimeInSeconds)
+					{
+						// Check if Session End Time exists within the boundaries of our bar 
+						bool IsWithinBarTime = 
+						(USStocksOpenTimeInSeconds >= CurrentBarStartTime && 
+						 USStocksOpenTimeInSeconds <= CurrentBarEndTime);
+
+						bool IsWithinBarTimeCME = 
+						(USStocksOpenTimeInSeconds == CurrentBarStartTime && 
+						 CurrentBarEndTime == 0 
+						 || USStocksOpenTimeInSeconds -1 == CurrentBarStartTime && CurrentBarEndTime == 0);
+
+						if(IsWithinBarTime || IsWithinBarTimeCME)
+						{
+							// we're on current settlement bar
+
+							// Draw it using our regular drawing tool 
+							s_UseTool USStocksOpen;
+
+							// User Drawn Drawings 
+							USStocksOpen.AddAsUserDrawnDrawing = 1;
+							USStocksOpen.AllowCopyToOtherCharts = 1;
+							USStocksOpen.LockDrawing = 1;
+
+							// USStocksOpen.AllowSaveToChartbook = 1;
+							USStocksOpen.ChartNumber = sc.ChartNumber;
+							USStocksOpen.LineNumber = -1;  
+
+							USStocksOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+							USStocksOpen.LineWidth = i_USStocksOpenPriceLineWidth.GetInt();
+							USStocksOpen.LineStyle = static_cast<SubgraphLineStyles>(i_USStocksOpenPriceLineStyle.GetIndex());
+							USStocksOpen.DisplayHorizontalLineValue = 1;
+
+							// Price Value 
+							USStocksOpen.BeginValue = sc.Open[Index];
+							USStocksOpen.EndValue = USStocksOpen.BeginValue;
+
+							// GET BAR INDEX 
+							USStocksOpen.BeginIndex = Index;
+							USStocksOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+							USStocksOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+							USStocksOpen.Region = sc.GraphRegion;
+							USStocksOpen.Color = i_USStocksOpenPriceColor.GetColor();
+							USStocksOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+							// Code used for Fixing Line Labels 
+							
+							// Convert bar index into a date time variable, number of days since 1899
+							SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+							
+							// get the year month and day from SCDateTimeVariable
+							int Year, Month, Day;
+							DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+							// Assign the line name for this drawing and pass to function
+							LineName = "";
+
+							// Call fix line labels 
+							VT_FixLineLabels(Month, Day, USStocksOpen, msg, Last, LineName);
+
+							// draw it 
+							sc.UseTool(USStocksOpen);
+
+							// remember line number 
+							p_LineNumbers->push_back(USStocksOpen.LineNumber);
+
+
+							// ESSENTIAL RESET VARIABLES 
+							// Set variables to ensure we only get here again on the next day 
+							LastDrawnUSStocksOpenDate = sc.BaseDateTimeIn[Index].GetDate();
+							USStocksOpenPriceDrawn = 1;
+
+							if(CurrentDay == DrawingStartDate && USStocksOpenTimeInSeconds != 0)
+							{
+								// This drawing takes place on current day therefore we should remember its line number 
+								// This is to inform the real-time code that the drawing has already been drawn. 
+
+								USStocksOpenLineNumberMemory = USStocksOpen.LineNumber;
+							}
+						}
+					}
+					else
+					{
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnUSStocksOpenDate = sc.BaseDateTimeIn[Index].GetDate();
+						USStocksOpenPriceDrawn = 1;
+
+						// debug 
+						// msg.Format("Open Times are the same, no drawing took place",1);
+						// sc.AddMessageToLog(msg,1);
+					}
+				}
+			}
+			// END US STOCKS OPEN LOGIC 
+			//
+			//
+			// START US STOCKS CLOSE LOGIC 
+			if(i_DrawStocksClose.GetInt() == 1)
+			{
+				// START US Stocks Close LOGIC 
+				if(CurrentBarDate > LastDrawnUSStocksCloseDate && USStocksClosePriceDrawn == 1)
+				{
+					USStocksClosePriceDrawn = 0;
+				}
+
+				// only looks for the open price if the open price 
+				// on the day has not already been drawn, DON'T DRAW THIS ON WEEKEND 
+				if(USStocksClosePriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSunday() != 1 
+					&& sc.BaseDateTimeIn[Index].IsSaturday() != 1)
+				{
+					// ONLY DRAW THIS IF SESSION END TIME IS NOT ALREADY SET TO THIS TIME 
+					if(SessionEndTimeInSeconds != USStocksCloseTimeInSeconds)
+					{
+						// Check if Session End Time exists within the boundaries of our bar 
+						bool IsWithinBarTime = 
+						(USStocksCloseTimeInSeconds >= CurrentBarStartTime && 
+						 USStocksCloseTimeInSeconds <= CurrentBarEndTime);
+
+						bool IsWithinBarTimeCME = 
+						(USStocksCloseTimeInSeconds == CurrentBarStartTime && 
+						 CurrentBarEndTime == 0 
+						 || USStocksCloseTimeInSeconds -1 == CurrentBarStartTime && CurrentBarEndTime == 0);
+
+						if(IsWithinBarTime || IsWithinBarTimeCME)
+						{
+							// we're on current settlement bar
+
+							// Draw it using our regular drawing tool 
+							s_UseTool USStocksClose;
+
+							// User Drawn Drawings 
+							USStocksClose.AddAsUserDrawnDrawing = 1;
+							USStocksClose.AllowCopyToOtherCharts = 1;
+							USStocksClose.LockDrawing = 1;
+
+							// USStocksClose.AllowSaveToChartbook = 1;
+							USStocksClose.ChartNumber = sc.ChartNumber;
+							USStocksClose.LineNumber = -1;  
+
+							USStocksClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+							USStocksClose.LineWidth = i_USStocksClosePriceLineWidth.GetInt();
+							USStocksClose.LineStyle = static_cast<SubgraphLineStyles>(i_USStocksClosePriceLineStyle.GetIndex());
+							USStocksClose.DisplayHorizontalLineValue = 1;
+
+							// Price Value 
+							USStocksClose.BeginValue = sc.Close[Index];
+							USStocksClose.EndValue = USStocksClose.BeginValue;
+
+							// GET BAR INDEX 
+							USStocksClose.BeginIndex = Index;
+							USStocksClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+							USStocksClose.AddMethod = UTAM_ADD_OR_ADJUST;
+							USStocksClose.Region = sc.GraphRegion;
+
+							USStocksClose.Color = i_USStocksClosePriceColor.GetColor();
+							USStocksClose.FontSize = i_FontSizeForLineText.GetInt();
+
+							// Code used for Fixing Line Labels 
+							
+							// Convert bar index into a date time variable, number of days since 1899
+							SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+							
+							// get the year month and day from SCDateTimeVariable
+							int Year, Month, Day;
+							DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+							// Assign the line name for this drawing and pass to function
+							LineName = "";
+
+							// Call fix line labels 
+							VT_FixLineLabels(Month, Day, USStocksClose, msg, Last, LineName);
+
+							// draw it 
+							sc.UseTool(USStocksClose);
+
+							// remember line number 
+							p_LineNumbers->push_back(USStocksClose.LineNumber);
+
+							// ESSENTIAL RESET VARIABLES 
+							// Set variables to ensure we only get here again on the next day 
+							LastDrawnUSStocksCloseDate = sc.BaseDateTimeIn[Index].GetDate();
+							USStocksClosePriceDrawn = 1;
+
+							if(CurrentDay == DrawingStartDate && USStocksCloseTimeInSeconds != 0)
+							{
+								// This drawing takes place on current day therefore we should remember its line number 
+								// This is to inform the real-time code that the drawing has already been drawn. 
+
+								USStocksCloseLineNumberMemory = USStocksClose.LineNumber;
+							}
+						}
+					}
+					else
+					{
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnUSStocksCloseDate = sc.BaseDateTimeIn[Index].GetDate();
+						USStocksClosePriceDrawn = 1;
+
+						// debug 
+						// msg.Format("Close Times are the same, no drawing took place",1);
+						// sc.AddMessageToLog(msg,1);
+
+					}
+				}
+			}
+			// END US STOCKS CLOSE LOGIC 
+			//
+			// START CME OPEN LOGIC 
+			if(i_DrawGlobexOpen.GetInt() == 1)
+			{
+				// START CME Open LOGIC 
+				if(CurrentBarDate > LastDrawnCMEOpenDate && CMEOpenPriceDrawn == 1)
+				{
+					CMEOpenPriceDrawn = 0;
+				}
+
+				// only looks for the open price if the open price 
+				// on the day has not already been drawn, ALLOW DRAWING ON SUNDAY 
+				// if(CMEOpenPriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSunday() != 1
+				// 	&& sc.BaseDateTimeIn[Index].IsSaturday() != 1)
+				if(CMEOpenPriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSaturday() != 1)
+				{
+					// Check if Session End Time exists within the boundaries of our bar 
+					bool IsWithinBarTime = 
+					(CMEOpenTimeInSeconds >= CurrentBarStartTime && 
+					 CMEOpenTimeInSeconds <= CurrentBarEndTime);
+
+					bool IsWithinBarTimeCME = 
+					(CMEOpenTimeInSeconds == CurrentBarStartTime && 
+					 CurrentBarEndTime == 0 
+					 || CMEOpenTimeInSeconds -1 == CurrentBarStartTime && CurrentBarEndTime == 0);
+
+					if(IsWithinBarTime || IsWithinBarTimeCME)
+					{
+						// we're on current settlement bar
+
+						// Draw it using our regular drawing tool 
+						s_UseTool CMEOpen;
+
+						// User Drawn Drawings 
+						CMEOpen.AddAsUserDrawnDrawing = 1;
+						CMEOpen.AllowCopyToOtherCharts = 1;
+						CMEOpen.LockDrawing = 1;
+
+						// CMEOpen.AllowSaveToChartbook = 1;
+						CMEOpen.ChartNumber = sc.ChartNumber;
+						CMEOpen.LineNumber = -1;  
+
+						CMEOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						CMEOpen.LineWidth = i_CMEOpenPriceLineWidth.GetInt();
+						CMEOpen.LineStyle = static_cast<SubgraphLineStyles>(i_CMEOpenPriceLineStyle.GetIndex());
+						CMEOpen.DisplayHorizontalLineValue = 1;
+
+						// Price Value 
+						CMEOpen.BeginValue = sc.Open[Index];
+						CMEOpen.EndValue = CMEOpen.BeginValue;
+
+						// GET BAR INDEX 
+						CMEOpen.BeginIndex = Index;
+						CMEOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+						CMEOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+						CMEOpen.Region = sc.GraphRegion;
+
+						CMEOpen.Color = i_CMEOpenPriceColor.GetColor();
+						CMEOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+						// Code used for Fixing Line Labels 
+						
+						// Convert bar index into a date time variable, number of days since 1899
+						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+						
+						// get the year month and day from SCDateTimeVariable
+						int Year, Month, Day;
+						DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+						// Assign the line name for this drawing and pass to function
+						LineName = "";
+
+						// Call fix line labels 
+						VT_FixLineLabels(Month, Day, CMEOpen, msg, Last, LineName);
+
+						// draw it 
+						sc.UseTool(CMEOpen);
+
+						// remember line number 
+						p_LineNumbers->push_back(CMEOpen.LineNumber);
+
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnCMEOpenDate = sc.BaseDateTimeIn[Index].GetDate();
+						CMEOpenPriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && CMEOpenTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							CMEOpenLineNumberMemory = CMEOpen.LineNumber;
+						}
+					}
+				}
+			}
+			// END CME OPEN LOGIC 
+			//
+			// START CME CLOSE LOGIC 
+			if(i_DrawGlobexClose.GetInt() == 1)
+			{
+				// START CME CLOSE LOGIC 
+				if(CurrentBarDate > LastDrawnCMECloseDate && CMEClosePriceDrawn == 1)
+				{
+					CMEClosePriceDrawn = 0;
+				}
+
+				// only looks for the open price if the open price 
+				// on the day has not already been drawn 
+				if(CMEClosePriceDrawn == 0 &&  sc.BaseDateTimeIn[Index].IsSaturday() != 1)
+				{
+					// Check if Session End Time exists within the boundaries of our bar 
+					bool IsWithinBarTime = 
+					(CMECloseTimeInSeconds >= CurrentBarStartTime && 
+					 CMECloseTimeInSeconds <= CurrentBarEndTime);
+
+					bool IsWithinEndTimeMinusStorageTimeUnit = 
+					(CurrentBarEndTime >= CMECloseTimeInSeconds - IDSTU
+					 && CurrentBarEndTime <= CMECloseTimeInSeconds);
+
+					// if(CurrentBarStartTime == CMECloseTimeInSeconds - SecondsPerBar)
+
+					bool IsWithinBarTimeCME = 
+					(CMECloseTimeInSeconds == CurrentBarStartTime && CurrentBarEndTime == 0 
+					 || CMECloseTimeInSeconds -1 == CurrentBarStartTime && CurrentBarEndTime == 0
+					 || IsWithinEndTimeMinusStorageTimeUnit
+					 || CurrentBarStartTime == CMECloseTimeInSeconds - SecondsPerBar); 
+					// second last one is the one that returns true when I have
+					// storage time unit set to 5 seconds 
+					//
+					// otherwise also check if the bar start time is equal to the close time minus seconds per bar 
+
+					if(IsWithinBarTime || IsWithinBarTimeCME)
+					{
+						// we're on current settlement bar
+
+						// Draw it using our regular drawing tool 
+						s_UseTool CMEClose;
+
+						// User Drawn Drawings 
+						CMEClose.AddAsUserDrawnDrawing = 1;
+						CMEClose.AllowCopyToOtherCharts = 1;
+						CMEClose.LockDrawing = 1;
+
+						// CMEClose.AllowSaveToChartbook = 1;
+						CMEClose.ChartNumber = sc.ChartNumber;
+						CMEClose.LineNumber = -1;  
+
+						CMEClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						CMEClose.LineWidth = i_CMEClosePriceLineWidth.GetInt();
+						CMEClose.LineStyle = static_cast<SubgraphLineStyles>(i_CMEClosePriceLineStyle.GetIndex());
+						CMEClose.DisplayHorizontalLineValue = 1;
+
+						// Price Value 
+						CMEClose.BeginValue = sc.Close[Index];
+						CMEClose.EndValue = CMEClose.BeginValue;
+
+						// GET BAR INDEX 
+						CMEClose.BeginIndex = Index;
+						CMEClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+						CMEClose.AddMethod = UTAM_ADD_OR_ADJUST;
+						CMEClose.Region = sc.GraphRegion;
+
+						CMEClose.Color = i_CMEClosePriceColor.GetColor();
+						CMEClose.FontSize = i_FontSizeForLineText.GetInt();
+
+						// Code used for Fixing Line Labels 
+						
+						// Convert bar index into a date time variable, number of days since 1899
+						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+						
+						// get the year month and day from SCDateTimeVariable
+						int Year, Month, Day;
+						DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+						// Assign the line name for this drawing and pass to function
+						LineName = "";
+
+						// Call fix line labels 
+						VT_FixLineLabels(Month, Day, CMEClose, msg, Last, LineName);
+
+						// draw it 
+						sc.UseTool(CMEClose);
+
+						// remember line number 
+						p_LineNumbers->push_back(CMEClose.LineNumber);
+
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
+						CMEClosePriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && CMECloseTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							CMECloseLineNumberMemory = CMEClose.LineNumber;
+						}
+					}
+				}
+			}
+			// END CME CLOSE LOGIC
+
+			// START EU OPEN PRICE LOGIC 
+			if(i_DrawEuropeOpen.GetInt() == 1)
+			{
+				if(CurrentBarDate > LastDrawnEUOpenDate && EUOpenPriceDrawn == 1)
+				{
+					EUOpenPriceDrawn = 0;
+				}
+
+				// only looks for the open price if the open price 
+				// on the day has not already been drawn 
+				if(EUOpenPriceDrawn == 0)
+				{
+					// Check if Session End Time exists within the boundaries of our bar 
+					bool IsWithinBarTime = 
+					(EUOpenTimeInSeconds >= CurrentBarStartTime && 
+					 EUOpenTimeInSeconds <= CurrentBarEndTime);
+
+					if(IsWithinBarTime)
+					{
+						// we're on current settlement bar
+
+						// Draw it using our regular drawing tool 
+						s_UseTool EUOpen;
+
+						// User Drawn Drawings 
+						EUOpen.AddAsUserDrawnDrawing = 1;
+						EUOpen.AllowCopyToOtherCharts = 1;
+						EUOpen.LockDrawing = 1;
+
+						// EUOpen.AllowSaveToChartbook = 1;
+						EUOpen.ChartNumber = sc.ChartNumber;
+						EUOpen.LineNumber = -1;  
+
+						EUOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						EUOpen.LineWidth = i_EuropeOpenLineWidth.GetInt();
+						EUOpen.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeOpenLineStyle.GetIndex());
+						EUOpen.DisplayHorizontalLineValue = 1;
+
+						// Price Value 
+						EUOpen.BeginValue = sc.Close[Index-1];
+						EUOpen.EndValue = EUOpen.BeginValue;
+
+						// GET BAR INDEX 
+						EUOpen.BeginIndex = Index;
+						EUOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+						EUOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+						EUOpen.Region = sc.GraphRegion;
+
+						EUOpen.Color = i_EuropeOpenColor.GetColor();
+						EUOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+						// Code used for Fixing Line Labels 
+						
+						// Convert bar index into a date time variable, number of days since 1899
+						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+						
+						// get the year month and day from SCDateTimeVariable
+						int Year, Month, Day;
+						DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+						// Assign the line name for this drawing and pass to function
+						LineName = "";
+
+						// Call fix line labels 
+						VT_FixLineLabels(Month, Day, EUOpen, msg, Last, LineName);
+
+						// draw it 
+						sc.UseTool(EUOpen);
+
+						// remember line number 
+						p_LineNumbers->push_back(EUOpen.LineNumber);
+
+						//-----------------------------------
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						LastDrawnEUOpenDate = sc.BaseDateTimeIn[Index].GetDate();
+						EUOpenPriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && EUOpenTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+							EUOpenPriceLineNumberMemory = EUOpen.LineNumber;
+						}
+					}
+				}
+			}
+			// END EU OPEN PRICE LOGIC 
+			
+			// START EU CLOSE PRICE LOGIC 
+			if(i_DrawEuropeClose.GetInt() == 1)
+			{
+				if(CurrentBarDate > LastDrawnEUCloseDate && EUClosePriceDrawn == 1)
+				{
+					EUClosePriceDrawn = 0;
+				}
+
+				// only looks for the openprice if the open price 
+				// on the day has not already been drawn 
+				if(EUClosePriceDrawn == 0)
+				{
+					// Check if Session End Time exists within the boundaries of our bar 
+					bool IsWithinBarTime = 
+					(EUCloseTimeInSeconds >= CurrentBarStartTime && 
+					 EUCloseTimeInSeconds <= CurrentBarEndTime);
+
+					if(IsWithinBarTime)
+					{
+						// we're on current settlement bar
+
+						// Draw it using our regular drawing tool 
+						s_UseTool EUClose;
+
+						// User Drawn Drawings 
+						EUClose.AddAsUserDrawnDrawing = 1;
+						EUClose.AllowCopyToOtherCharts = 1;
+						EUClose.LockDrawing = 1;
+
+						// EUClose.AllowSaveToChartbook = 1;
+						EUClose.ChartNumber = sc.ChartNumber;
+						EUClose.LineNumber = -1;  
+
+						EUClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						EUClose.LineWidth = i_EuropeCloseLineWidth.GetInt();
+						EUClose.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeCloseLineStyle.GetIndex());
+						EUClose.DisplayHorizontalLineValue = 1;
+
+						// Price Value 
+						EUClose.BeginValue = sc.Open[Index];
+						EUClose.EndValue = EUClose.BeginValue;
+
+						// GET BAR INDEX 
+						EUClose.BeginIndex = Index;
+						EUClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+						EUClose.AddMethod = UTAM_ADD_OR_ADJUST;
+						EUClose.Region = sc.GraphRegion;
+
+						EUClose.Color = i_EuropeCloseColor.GetColor();
+						EUClose.FontSize = i_FontSizeForLineText.GetInt();
+
+						// Code used for Fixing Line Labels 
+						
+						// Convert bar index into a date time variable, number of days since 1899
+						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
+						
+						// get the year month and day from SCDateTimeVariable
+						int Year, Month, Day;
+						DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+						// Assign the line name for this drawing and pass to function
+						LineName = "";
+
+						// Call fix line labels 
+						VT_FixLineLabels(Month, Day, EUClose, msg, Last, LineName);
+
+						// draw it 
+						sc.UseTool(EUClose);
+
+						// remember line number 
+						p_LineNumbers->push_back(EUClose.LineNumber);
+
+						//-----------------------------------
+						// ESSENTIAL RESET VARIABLES 
+						// Set variables to ensure we only get here again on the next day 
+						// LastDrawnEUCloseDate = sc.BaseDateTimeIn[Index].GetDate();
+						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
+						EUClosePriceDrawn = 1;
+
+						if(CurrentDay == DrawingStartDate && EUCloseTimeInSeconds != 0)
+						{
+							// This drawing takes place on current day therefore we should remember its line number 
+							// This is to inform the real-time code that the drawing has already been drawn. 
+
+							EUClosePriceLineNumberMemory = EUClose.LineNumber;
+						}
+					}
+				}
+			}
+			// END EU CLOSE PRICE LOGIC 
+			//
 			// START MIDNIGHT PRICE LOGIC 
 			if(i_DrawMidnightPrice.GetInt() == 1)
 			{
@@ -1223,9 +4045,12 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						// Draw it using our regular drawing tool 
 						s_UseTool MidnightPrice;
 
-						// MidnightPrice.AddAsUserDrawnDrawing = 1;
+						// User Drawn Drawings 
+						MidnightPrice.AddAsUserDrawnDrawing = 1;
 						MidnightPrice.AllowCopyToOtherCharts = 1;
-						MidnightPrice.AllowSaveToChartbook = 1;
+						MidnightPrice.LockDrawing = 1;
+
+						// MidnightPrice.AllowSaveToChartbook = 1;
 						MidnightPrice.ChartNumber = sc.ChartNumber;
 						MidnightPrice.LineNumber = -1;  
 
@@ -1250,6 +4075,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						MidnightPrice.Region = sc.GraphRegion;
 
 						MidnightPrice.Color = i_MidnightPriceColor.GetColor();
+						MidnightPrice.FontSize = i_FontSizeForLineText.GetInt();
 
 						// Code used for Fixing Line Labels 
 						
@@ -1293,55 +4119,65 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			}
 			// END MIDNIGHT PRICE LOGIC 
 			//
-			// START SESSION OPEN TIME LOGIC 
-			if(i_DrawSessionOpen.GetInt() == 1)
+			// START UTC Open PRICE LOGIC 
+			if(i_DrawUTCOpenPrice .GetInt() == 1)
 			{
-				// logic to reset looking for new session open price 
-				if(CurrentBarDate > LastDrawnOpenDate && SessionOpenPriceDrawn == 1)
+				if(CurrentBarDate > LastDrawnUTCOpenPriceDate && UTCOpenPriceDrawn == 1)
+				// if(LastDrawnUTCOpenPriceDate < CurrentBarDate && UTCOpenPriceDrawn == 1)
 				{
-					SessionOpenPriceDrawn = 0;
+					UTCOpenPriceDrawn = 0;
 				}
 
-				// only looks for the openprice if the open price 
-				// on the day has not already been drawn 
-				if(SessionOpenPriceDrawn == 0)
-				{
-					// Check if Session End Time exists within the boundaries of our bar 
-					bool IsWithinBarTime = 
-					(SessionStartTimeInSeconds >= CurrentBarStartTime && 
-					 SessionStartTimeInSeconds <= CurrentBarEndTime);
+				// msg.Format("UTCOpenPriceInSeconds: %d, CurrentBarStartTime: %d, CurrentBarEndTime: %d",
+				// 	UTCOpenPriceInSeconds, CurrentBarStartTime, CurrentBarEndTime);
+				// sc.AddMessageToLog(msg,1);
 
-					if(IsWithinBarTime)
+				// only looks to draw midnight price if the midnight price 
+				// on the day has not already been drawn 
+				if(UTCOpenPriceDrawn == 0)
+				{
+					// special logic for midnight price compared to other levels 
+					// Might still present problems with intraday storage time unit 
+					if(CurrentBarStartTime == UTCOpenPriceInSeconds) 
 					{
-						// we're on current settlement bar
+						// Go back a bar and draw the midnight price
+						//
+						// Debug 
 
 						// Draw it using our regular drawing tool 
-						s_UseTool SessionOpen;
+						s_UseTool UTCOpenPrice;
 
-						// SessionOpen.AddAsUserDrawnDrawing = 1;
-						SessionOpen.AllowCopyToOtherCharts = 1;
-						SessionOpen.AllowSaveToChartbook = 1;
-						SessionOpen.ChartNumber = sc.ChartNumber;
-						SessionOpen.LineNumber = -1;  
+						// User Drawn Drawings 
+						UTCOpenPrice.AddAsUserDrawnDrawing = 1;
+						UTCOpenPrice.AllowCopyToOtherCharts = 1;
+						UTCOpenPrice.LockDrawing = 1;
 
-						SessionOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						// UTCOpenPrice.AllowSaveToChartbook = 1;
+						UTCOpenPrice.ChartNumber = sc.ChartNumber;
+						UTCOpenPrice.LineNumber = -1;  
 
-						SessionOpen.LineWidth = i_SessionOpenLineWidth.GetInt();
-						SessionOpen.LineStyle = static_cast<SubgraphLineStyles>(i_SessionOpenLineStyle.GetIndex());
-						SessionOpen.DisplayHorizontalLineValue = 1;
+						UTCOpenPrice.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+						UTCOpenPrice.LineWidth = i_UTCOpenPriceLineWidth.GetInt();
+						// UTCOpenPrice.LineStyle = LINESTYLE_DASHDOTDOT;
+						UTCOpenPrice.LineStyle = static_cast<SubgraphLineStyles>(i_UTCOpenPriceLineStyle.GetIndex());
+						UTCOpenPrice.DisplayHorizontalLineValue = 1;
 
 						// Price Value 
-						SessionOpen.BeginValue = sc.Open[Index];
-						SessionOpen.EndValue = SessionOpen.BeginValue;
+						// set value to be close of the previous bar 
+						UTCOpenPrice.BeginValue = sc.Close[Index-1];
+
+						// set end value to the beginning value 
+						UTCOpenPrice.EndValue = UTCOpenPrice.BeginValue;
 
 						// GET BAR INDEX 
-						SessionOpen.BeginIndex = Index;
-						SessionOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+						UTCOpenPrice.BeginIndex = Index;
+						UTCOpenPrice.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
-						SessionOpen.AddMethod = UTAM_ADD_OR_ADJUST;
-						SessionOpen.Region = sc.GraphRegion;
+						UTCOpenPrice.AddMethod = UTAM_ADD_OR_ADJUST;
+						UTCOpenPrice.Region = sc.GraphRegion;
 
-						SessionOpen.Color = i_SessionOpenColor.GetColor();
+						UTCOpenPrice.Color = i_UTCOpenPriceColor.GetColor();
+						UTCOpenPrice.FontSize = i_FontSizeForLineText.GetInt();
 
 						// Code used for Fixing Line Labels 
 						
@@ -1356,296 +4192,56 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 						LineName = "";
 
 						// Call fix line labels 
-						VT_FixLineLabels(Month, Day, SessionOpen, msg, Last, LineName);
+						VT_FixLineLabels(Month, Day, UTCOpenPrice, msg, Last, LineName);
 
-						sc.UseTool(SessionOpen);
-						p_LineNumbers->push_back(SessionOpen.LineNumber);
+						sc.UseTool(UTCOpenPrice);
+						p_LineNumbers->push_back(UTCOpenPrice.LineNumber);
 
 						//-----------------------------------
 						// ESSENTIAL RESET VARIABLES 
 						// Set variables to ensure we only get here again on the next day 
-						LastDrawnOpenDate = sc.BaseDateTimeIn[Index].GetDate();
-						SessionOpenPriceDrawn = 1;
+						LastDrawnUTCOpenPriceDate = sc.BaseDateTimeIn[Index].GetDate();
+						UTCOpenPriceDrawn = 1;
 
-						// if this drawing is on the current day
-						if(CurrentDay == DrawingStartDate && SessionStartTimeInSeconds != 0)
+						// NOTE: The second condition here adds support for users that have timezone
+						// set differeant than NY time. Because in NY time the
+						// Midnight time in seconds in 0 therefore it is a new day
+						// already so the real-time code below can handle the drawing.
+						//
+						// In other timezones UTCOpenPriceinSeconds will not be 0 therefore
+						// this will be the way of handling it. 
+						if(CurrentDay == DrawingStartDate && UTCOpenPriceInSeconds != 0)
 						{
 							// This drawing takes place on current day therefore we should remember its line number 
 							// This is to inform the real-time code that the drawing has already been drawn. 
-
-							SessionOpenLineNumberMemory = SessionOpen.LineNumber;
+							UTCOpenPriceLineNumberMemory = UTCOpenPrice.LineNumber;
 						}
 					}
 				}
 			}
-			// END SESSION OPEN LOGIC 
-			//
-			if(i_DrawGlobexClose.GetInt() == 1)
-			{
-				// START CME CLOSE LOGIC 
-				if(CurrentBarDate > LastDrawnCMECloseDate && CMEClosePriceDrawn == 1)
-				{
-					CMEClosePriceDrawn = 0;
-				}
+			// END UTC Open PRICE LOGIC 
+			 //
+			// if(isSunday)
+			// {
+			// 	// This code needs to be moved to the bottom after we draw our levels. 
+			// 	// skip saturday 
+			// 	//
+			// 	SCDateTime HighLowStartDateTime(CurrentBarDate -2,0);
 
-				// only looks for the openprice if the open price 
-				// on the day has not already been drawn 
-				if(CMEClosePriceDrawn == 0 && sc.BaseDateTimeIn[Index].IsSunday() != 1
-					&& sc.BaseDateTimeIn[Index].IsSaturday() != 1)
-				{
-					// Check if Session End Time exists within the boundaries of our bar 
-					bool IsWithinBarTime = 
-					(CMECloseTimeInSeconds >= CurrentBarStartTime && 
-					 CMECloseTimeInSeconds <= CurrentBarEndTime);
+			// 	// move index 
+			// 	// Index = sc.GetContainingIndexForSCDateTime(sc.ChartNumber, HighLowStartDateTime);
 
-					bool IsWithinBarTimeCME = 
-					(CMECloseTimeInSeconds == CurrentBarStartTime && 
-					 CurrentBarEndTime == 0 
-					 || CMECloseTimeInSeconds -1 == CurrentBarStartTime && CurrentBarEndTime == 0);
+			// 	// debug 
+			// 	msg.Format("SUNDAY SecType: %d Current Bar Date: %d Last Drawn Date: %d", SecType, CurrentBarDate, LastDrawnHighLowDate);
+			// 	sc.AddMessageToLog(msg,1);
 
-					if(IsWithinBarTime || IsWithinBarTimeCME)
-					{
-						// we're on current settlement bar
+			// 	// set variables 
+			// 	HighLowPriceDrawn = 1;
+			// 	// LastDrawnHighLowDate = CurrentBarDate-3;
+			// 	LastDrawnHighLowDate = CurrentBarDate ;
 
-						// Draw it using our regular drawing tool 
-						s_UseTool CMESessionClose;
-
-						// CMESessionClose.AddAsUserDrawnDrawing = 1;
-						CMESessionClose.AllowCopyToOtherCharts = 1;
-						CMESessionClose.AllowSaveToChartbook = 1;
-						CMESessionClose.ChartNumber = sc.ChartNumber;
-						CMESessionClose.LineNumber = -1;  
-
-						CMESessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						CMESessionClose.LineWidth = i_GlobexClosePriceLineWidth.GetInt();
-						CMESessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_GlobexClosePriceLineStyle.GetIndex());
-						CMESessionClose.DisplayHorizontalLineValue = 1;
-
-						// Price Value 
-						CMESessionClose.BeginValue = sc.Close[Index];
-						CMESessionClose.EndValue = CMESessionClose.BeginValue;
-
-						// GET BAR INDEX 
-						CMESessionClose.BeginIndex = Index;
-						CMESessionClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-						CMESessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
-						CMESessionClose.Region = sc.GraphRegion;
-
-						CMESessionClose.Color = i_GlobexClosePriceColor.GetColor();
-
-						// Code used for Fixing Line Labels 
-						
-						// Convert bar index into a date time variable, number of days since 1899
-						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
-						
-						// get the year month and day from SCDateTimeVariable
-						int Year, Month, Day;
-						DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-						// Assign the line name for this drawing and pass to function
-						LineName = "";
-
-						// Call fix line labels 
-						VT_FixLineLabels(Month, Day, CMESessionClose, msg, Last, LineName);
-
-						// draw it 
-						sc.UseTool(CMESessionClose);
-
-						// remember line number 
-						p_LineNumbers->push_back(CMESessionClose.LineNumber);
-
-						// ESSENTIAL RESET VARIABLES 
-						// Set variables to ensure we only get here again on the next day 
-						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
-						CMEClosePriceDrawn = 1;
-
-						if(CurrentDay == DrawingStartDate && CMECloseTimeInSeconds != 0)
-						{
-							// This drawing takes place on current day therefore we should remember its line number 
-							// This is to inform the real-time code that the drawing has already been drawn. 
-
-							CMECloseLineNumberMemory = CMESessionClose.LineNumber;
-						}
-					}
-				}
-			}
-			// -------------------------
-			// END CME CLOSE PRICE LOGIC
-
-			// START EU OPEN PRICE LOGIC 
-			if(i_DrawEuropeOpen.GetInt() == 1)
-			{
-				if(CurrentBarDate > LastDrawnEUOpenDate && EUOpenPriceDrawn == 1)
-				{
-					EUOpenPriceDrawn = 0;
-				}
-
-				// only looks for the openprice if the open price 
-				// on the day has not already been drawn 
-				if(EUOpenPriceDrawn == 0)
-				{
-					// Check if Session End Time exists within the boundaries of our bar 
-					bool IsWithinBarTime = 
-					(EUOpenTimeInSeconds >= CurrentBarStartTime && 
-					 EUOpenTimeInSeconds <= CurrentBarEndTime);
-
-					if(IsWithinBarTime)
-					{
-						// we're on current settlement bar
-
-						// Draw it using our regular drawing tool 
-						s_UseTool EUOpen;
-
-						// EUOpen.AddAsUserDrawnDrawing = 1;
-						EUOpen.AllowCopyToOtherCharts = 1;
-						EUOpen.AllowSaveToChartbook = 1;
-						EUOpen.ChartNumber = sc.ChartNumber;
-						EUOpen.LineNumber = -1;  
-
-						EUOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						EUOpen.LineWidth = i_EuropeOpenLineWidth.GetInt();
-						EUOpen.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeOpenLineStyle.GetIndex());
-						EUOpen.DisplayHorizontalLineValue = 1;
-
-						// Price Value 
-						EUOpen.BeginValue = sc.Close[Index-1];
-						EUOpen.EndValue = EUOpen.BeginValue;
-
-						// GET BAR INDEX 
-						EUOpen.BeginIndex = Index;
-						EUOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-						EUOpen.AddMethod = UTAM_ADD_OR_ADJUST;
-						EUOpen.Region = sc.GraphRegion;
-
-						EUOpen.Color = i_EuropeOpenColor.GetColor();
-
-						// Code used for Fixing Line Labels 
-						
-						// Convert bar index into a date time variable, number of days since 1899
-						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
-						
-						// get the year month and day from SCDateTimeVariable
-						int Year, Month, Day;
-						DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-						// Assign the line name for this drawing and pass to function
-						LineName = "";
-
-						// Call fix line labels 
-						VT_FixLineLabels(Month, Day, EUOpen, msg, Last, LineName);
-
-						// draw it 
-						sc.UseTool(EUOpen);
-
-						// remember line number 
-						p_LineNumbers->push_back(EUOpen.LineNumber);
-
-						//-----------------------------------
-						// ESSENTIAL RESET VARIABLES 
-						// Set variables to ensure we only get here again on the next day 
-						LastDrawnEUOpenDate = sc.BaseDateTimeIn[Index].GetDate();
-						EUOpenPriceDrawn = 1;
-
-						if(CurrentDay == DrawingStartDate && EUOpenTimeInSeconds != 0)
-						{
-							// This drawing takes place on current day therefore we should remember its line number 
-							// This is to inform the real-time code that the drawing has already been drawn. 
-							EUOpenPriceLineNumberMemory = EUOpen.LineNumber;
-						}
-					}
-				}
-			}
-
-			// END EU OPEN PRICE LOGIC 
-			//
-			// START EU CLOSE PRICE LOGIC 
-			if(i_DrawEuropeClose.GetInt() == 1)
-			{
-				if(CurrentBarDate > LastDrawnEUCloseDate && EUClosePriceDrawn == 1)
-				{
-					EUClosePriceDrawn = 0;
-				}
-
-				// only looks for the openprice if the open price 
-				// on the day has not already been drawn 
-				if(EUClosePriceDrawn == 0)
-				{
-					// Check if Session End Time exists within the boundaries of our bar 
-					bool IsWithinBarTime = 
-					(EUCloseTimeInSeconds >= CurrentBarStartTime && 
-					 EUCloseTimeInSeconds <= CurrentBarEndTime);
-
-					if(IsWithinBarTime)
-					{
-						// we're on current settlement bar
-
-						// Draw it using our regular drawing tool 
-						s_UseTool EUClose;
-
-						// EUClose.AddAsUserDrawnDrawing = 1;
-						EUClose.AllowCopyToOtherCharts = 1;
-						EUClose.AllowSaveToChartbook = 1;
-						EUClose.ChartNumber = sc.ChartNumber;
-						EUClose.LineNumber = -1;  
-
-						EUClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-						EUClose.LineWidth = i_EuropeCloseLineWidth.GetInt();
-						EUClose.LineStyle = static_cast<SubgraphLineStyles>(i_EuropeCloseLineStyle.GetIndex());
-						EUClose.DisplayHorizontalLineValue = 1;
-
-						// Price Value 
-						EUClose.BeginValue = sc.Open[Index];
-						EUClose.EndValue = EUClose.BeginValue;
-
-						// GET BAR INDEX 
-						EUClose.BeginIndex = Index;
-						EUClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-						EUClose.AddMethod = UTAM_ADD_OR_ADJUST;
-						EUClose.Region = sc.GraphRegion;
-
-						EUClose.Color = i_EuropeCloseColor.GetColor();
-
-						// Code used for Fixing Line Labels 
-						
-						// Convert bar index into a date time variable, number of days since 1899
-						SCDateTime DrawingStartDate = sc.BaseDateTimeIn[Index].GetDate();
-						
-						// get the year month and day from SCDateTimeVariable
-						int Year, Month, Day;
-						DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-						// Assign the line name for this drawing and pass to function
-						LineName = "";
-
-						// Call fix line labels 
-						VT_FixLineLabels(Month, Day, EUClose, msg, Last, LineName);
-
-						// draw it 
-						sc.UseTool(EUClose);
-
-						// remember line number 
-						p_LineNumbers->push_back(EUClose.LineNumber);
-
-						//-----------------------------------
-						// ESSENTIAL RESET VARIABLES 
-						// Set variables to ensure we only get here again on the next day 
-						// LastDrawnEUCloseDate = sc.BaseDateTimeIn[Index].GetDate();
-						LastDrawnCMECloseDate = sc.BaseDateTimeIn[Index].GetDate();
-						EUClosePriceDrawn = 1;
-
-						if(CurrentDay == DrawingStartDate && EUCloseTimeInSeconds != 0)
-						{
-							// This drawing takes place on current day therefore we should remember its line number 
-							// This is to inform the real-time code that the drawing has already been drawn. 
-
-							EUClosePriceLineNumberMemory = EUClose.LineNumber;
-						}
-					}
-				}
-			}
+			// 	continue;
+			// }
 		}
 
 		// debug midnight price 
@@ -1653,120 +4249,15 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// 	NumResets, CurrentBarDate, LastDrawnMidnightPriceDate);
 		// sc.AddMessageToLog(msg,1);
 		//
-		// HANDLE MOST RECENT HIGH/LOW 
-		// ---------------------------------------
-		// Once we exit this for loop, the high and low should be set to the
-		// high/low of the current day. 
 		//
-		// Therefore we need to handle the drawing for
-		// the current day's high low here and separetely 
-		//
-		s_UseTool LowOfDay;
-
-		// LowOfDay.AddAsUserDrawnDrawing = 1;
-		LowOfDay.AllowCopyToOtherCharts = 1;
-		LowOfDay.AllowSaveToChartbook = 1;
-		LowOfDay.ChartNumber = sc.ChartNumber;
-		LowOfDay.LineNumber = -1;  
-		LowOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-		LowOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
-		LowOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
-		LowOfDay.DisplayHorizontalLineValue = 1;
-
-		// Price Value 
-		LowOfDay.BeginValue = sc.Low[LowIndex];
-		LowOfDay.EndValue = LowOfDay.BeginValue;
-
-		// GET BAR INDEX 
-		LowOfDay.BeginIndex = LowIndex;
-		LowOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-		LowOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
-		LowOfDay.Region = sc.GraphRegion;
-
-		LowOfDay.Color = i_IntradayHighLowColor.GetColor();
-
-		// Date Time Object 
-		SCDateTime DrawingStartDate;
-
-		// Convert bar index into a date time variable, number of days since 1899
-		DrawingStartDate = sc.BaseDateTimeIn[LowIndex].GetDate();
-		
-		// get the year month and day from SCDateTimeVariable
-		int Year, Month, Day;
-		DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-		// Assign the line name for this drawing and pass to function
-		LineName = "L";
-
-		// Call fix line labels 
-		VT_FixLineLabels(Month, Day, LowOfDay, msg, Last,  LineName);
-
-		sc.UseTool(LowOfDay);
-		p_LineNumbers->push_back(LowOfDay.LineNumber);
-
-		// save low of day into memory to be alerted on new low of day 
-		LowOfDayLineNumberMemory = LowOfDay.LineNumber;
-		LowOfDayMemory = LowOfDay.BeginValue;
-
-		// No need to increment line number because this is last drawing
-		
-		// now do High of day 
-		s_UseTool HighOfDay;
-
-		// HighOfDay.AddAsUserDrawnDrawing = 1;
-		HighOfDay.AllowCopyToOtherCharts = 1;
-		HighOfDay.AllowSaveToChartbook = 1;
-		HighOfDay.ChartNumber = sc.ChartNumber;
-		HighOfDay.LineNumber = -1;  
-		HighOfDay.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-		HighOfDay.LineWidth = i_IntradayHighLowLineWidth.GetInt();
-		HighOfDay.LineStyle = static_cast<SubgraphLineStyles>(i_IntradayHighLowLineStyle.GetIndex());
-		HighOfDay.DisplayHorizontalLineValue = 1;
-
-		// Price Value 
-		HighOfDay.BeginValue = sc.High[HighIndex];
-		HighOfDay.EndValue = HighOfDay.BeginValue;
-
-		// GET BAR INDEX 
-		HighOfDay.BeginIndex = HighIndex;
-		HighOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
-
-		HighOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
-		HighOfDay.Region = sc.GraphRegion;
-
-		HighOfDay.Color = i_IntradayHighLowColor.GetColor();
-
-		// Code used for Fixing Line Labels 
-		
-		// Convert bar index into a date time variable, number of days since 1899
-		DrawingStartDate = sc.BaseDateTimeIn[HighIndex].GetDate();
-		
-		// get the year month and day from SCDateTimeVariable
-		DrawingStartDate.GetDateYMD(Year,Month,Day);
-
-		// Assign the line name for this drawing and pass to function
-		LineName = "H";
-
-		// Call fix line labels 
-		VT_FixLineLabels(Month, Day, HighOfDay, msg, Last, LineName);
-
-		sc.UseTool(HighOfDay);
-		p_LineNumbers->push_back(HighOfDay.LineNumber);
-
-		// save high of day into memory to be alerted on new low of day 
-		HighOfDayLineNumberMemory = HighOfDay.LineNumber;
-		HighOfDayMemory = HighOfDay.BeginValue;
-
-		// No need to increment the line number anymore because this is our last
-		// drawing. 
+		// DRAWING HIGH LOW HERE IS NO LONGER NECESSARY BECAUSE OUR RECENT HIGH OF DAY GETS DRAWN BY THE LOOP ABOVE 
 	}
 	// End ACS Button press 
 
 	// START REALTIME LOGIC 
 	//
-	// TODO: Go over array of levels saved from this study 
-	// TODO: Write alert functionality for the extra levels
+	// Go over array of levels saved from this study 
+	//
 	// If we reclaim prior day high or low, midnight price etc. 
 	//
 	// We can iterate through all saved levels in vector and compare which are
@@ -1774,37 +4265,423 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 	
 
 	s_UseTool Line;
+
+	// Get the current chart symbol for alert text 
+	SCString CurrentSymbol = sc.Symbol;
+
+	// Text for formatting alert text 
+	SCString AlertText;
+
 	// Check levels in array for realtime tests 
+	//
+	// msg.Format("Array Size: %d", p_LineNumbers->size());
+	// sc.AddMessageToLog(msg,1);
+	//
+	// This for loop 
 	for(int i = 0; i < p_LineNumbers->size();i++)
 	{
-		if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+		if(sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+		// if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
 		{
 			// Check for levels based on their color and draw style 
+			//
+			// SESSION OPEN LINE PARAMETERS 
 			if(Line.Color == i_SessionOpenColor.GetColor()
 				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_SessionOpenLineStyle.GetIndex())
 				&& Line.LineWidth == i_SessionOpenLineWidth.GetInt())
 			{
-
-				// This line is a prior day open 
+				// This line is a prior session open 
 				// Check if the user enabled alerts for those levels 
-				if(i_EnablePreviousOpenAlert.GetBoolean())
+				if(i_EnableSessionOpenAlert.GetBoolean())
 				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Session Open Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
 
-					// check if the last price or current bar price has breached this level 
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
 
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Session Open Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
 				}
-				else
-				{
+				// else
+				// {
+				// 	// They did not enable alert 
 
-				}
+				// }
 
 
 			}
-			//
+			// SESSION CLOSE LINE PARAMETERS 
+			else if(Line.Color == i_SessionCloseColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_SessionCloseLineStyle.GetIndex())
+				&& Line.LineWidth == i_SessionCloseLineWidth.GetInt())
+			{
+				// This line is a prior session close 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableSessionCloseAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Session Close Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Session Close Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// US STOCKS OPEN LINE PARAMETERS 
+			else if(Line.Color == i_USStocksOpenPriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_USStocksOpenPriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_USStocksOpenPriceLineWidth.GetInt())
+			{
+				// This line is a prior US Stocks open 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableStocksOpenPriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing US Stocks Open Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing US Stocks Open Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// US STOCKS CLOSE LINE PARAMETERS 
+			else if(Line.Color == i_USStocksClosePriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_USStocksClosePriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_USStocksClosePriceLineWidth.GetInt())
+			{
+				// This line is a prior US Stocks close 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableStocksClosePriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing US Stocks Close Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing US Stocks Close Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// CME OPEN LINE PARAMETERS 
+			else if(Line.Color == i_CMEOpenPriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_CMEOpenPriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_CMEOpenPriceLineWidth.GetInt())
+			{
+				// This line is a prior CME open 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableCMEOpenPriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing CME Open Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing CME Open Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// CME CLOSE LINE PARAMETERS 
+			else if(Line.Color == i_CMEClosePriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_CMEClosePriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_CMEClosePriceLineWidth.GetInt())
+			{
+				// This line is a prior CME Close  
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableCMEClosePriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing CME Close Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing CME Close Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// EUROPE OPEN LINE PARAMETERS 
+			else if(Line.Color == i_EuropeOpenColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_EuropeOpenLineStyle.GetIndex())
+				&& Line.LineWidth == i_EuropeOpenLineWidth.GetInt())
+			{
+				// This line is a prior Europe open 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableEuropeOpenPriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Europe Open Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Europe Open Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// EUROPE CLOSE LINE PARAMETERS 
+			else if(Line.Color == i_EuropeCloseColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_EuropeCloseLineStyle.GetIndex())
+				&& Line.LineWidth == i_EuropeCloseLineWidth.GetInt())
+			{
+				// This line is a prior Europe Close  
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableEuropeClosePriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Europe Close Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Europe Close Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// NY MIDNIGHT LINE PARAMETERS 
+			else if(Line.Color == i_MidnightPriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_MidnightPriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_MidnightPriceLineWidth.GetInt())
+			{
+				// This line is a prior NY Midnight Price 
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableMidnightPriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Midnight Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing Midnight Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
+			// UTC MIDNIGHT LINE PARAMETERS 
+			else if(Line.Color == i_UTCOpenPriceColor.GetColor()
+				&& Line.LineStyle == static_cast<SubgraphLineStyles>(i_UTCOpenPriceLineStyle.GetIndex())
+				&& Line.LineWidth == i_UTCOpenPriceLineWidth.GetInt())
+			{
+				// This line is a prior UTC Open
+				// Check if the user enabled alerts for those levels 
+				if(i_EnableUTCMidnightPriceAlert.GetBoolean())
+				{
+					// Cross From below 
+					// Bar Open Price is less than Line
+					// Last price is greater than or equal to Line
+					if(sc.Open[sc.ArraySize-1] < Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] >= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing UTC Open Price (%f) From Below!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+
+					}
+					// Cross From Above  
+					// Bar Open Price is greater than Line 
+					// Last Price is less than or equal to Line 
+					else if(sc.Open[sc.ArraySize-1] > Line.BeginValue
+						&& sc.Close[sc.ArraySize-1] <= Line.BeginValue)
+					{
+						// Format alert text 
+						AlertText.Format("%s Crossing UTC Open Price (%f) From Above!", CurrentSymbol.GetChars(), Line.BeginValue) ;
+
+						// Create the alert 
+						sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+							sc.ArraySize-1, AlertText); 
+					}
+				}
+			}
 
 		}
-
 	}
+
+	// debug 
+	// msg.Format("DEBUG: low Memory: %f, Low Line Number: %d, High Memory: %f, High Line Number: %d", LowOfDayMemory, LowOfDayLineNumberMemory, HighOfDayMemory, HighOfDayLineNumberMemory);
+	// sc.AddMessageToLog(msg,1);
+	//
+	// msg.Format("last bar index: %d", sc.ArraySize-1);
+	// sc.AddMessageToLog(msg,1);
 
 	// check for new low of day 
 	if(sc.Low[sc.ArraySize-1] < LowOfDayMemory)
@@ -1812,20 +4689,31 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// Remember the new low 
 		LowOfDayMemory = sc.Low[sc.ArraySize-1];
 		
-		// redraw the drawing 
+		// drawing object 
 		s_UseTool LowOfDay;
 
-		LowOfDay.LineNumber = LowOfDayLineNumberMemory;  
+		// Possible Need to Get the drawing by the line number since it is user drawn 
+		// use saved line number 
+		sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, LowOfDayLineNumberMemory, LowOfDay);
+		// if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, LowOfDayLineNumberMemory,LowOfDay))
+
+		// These three lines are crucial to a successful user drawn drawing modification
+		LowOfDay.Clear(); // crucial 
+		LowOfDay.LineNumber = LowOfDayLineNumberMemory;  // line number must be set explicitly
+		LowOfDay.AddAsUserDrawnDrawing = 1; // Third crucial line 
+		LowOfDay.LockDrawing = 1;
 
 		// Update Price
 		LowOfDay.BeginValue = sc.Low[sc.ArraySize-1];
 		LowOfDay.EndValue = LowOfDay.BeginValue;
 
-		// Update BAR INDEX 
+		// to check this 
+		// GET BAR INDEX 
 		LowOfDay.BeginIndex = sc.ArraySize-1;
 		LowOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
 		LowOfDay.AddMethod = UTAM_ADD_OR_ADJUST;
+		LowOfDay.FontSize = i_FontSizeForLineText.GetInt();
 
 		// draw 
 		sc.UseTool(LowOfDay);
@@ -1833,16 +4721,12 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		// if alerts are enabled 
 		if(i_EnableNewHighLowAlert.GetBoolean())
 		{
-			// Get the current chart symbol for alert text 
-			SCString CurrentSymbol = sc.Symbol;
-
-			// Create alert text 
-			SCString AlertText = SCString("New Low of Day on ") 
-				+ std::move(CurrentSymbol) + SCString("!");
+			// Format Alert Text 
+			AlertText.Format("%s New Low Of Day! Price: (%f)", CurrentSymbol.GetChars(), LowOfDay.BeginValue) ;
 
 			// Create New Low of day alert 
-			sc.SetAlert(i_AlertNumberForHighLowAlert.GetInt(), 
-				sc.ArraySize-1, std::move(AlertText)); 
+			sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+				sc.ArraySize-1, AlertText); 
 		}
 	}
 	// check for new high of day 
@@ -1853,7 +4737,15 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 
 		// redraw the drawing 
 		s_UseTool HighOfDay;
+
+		sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, HighOfDayLineNumberMemory, HighOfDay);
+		// if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, HighOfDayLineNumberMemory,HighOfDay))
+
+		// These three lines are crucial to a successful user drawn drawing modification
+		HighOfDay.Clear();
 		HighOfDay.LineNumber = HighOfDayLineNumberMemory;  
+		HighOfDay.AddAsUserDrawnDrawing = 1;
+		HighOfDay.LockDrawing = 1;
 
 		// Update Price   
 		HighOfDay.BeginValue = sc.High[sc.ArraySize-1];
@@ -1863,33 +4755,31 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		HighOfDay.BeginIndex = sc.ArraySize-1;
 		HighOfDay.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
+		HighOfDay.FontSize = i_FontSizeForLineText.GetInt();
+
 		// draw
 		sc.UseTool(HighOfDay);
 
 		// if alerts are enabled 
 		if(i_EnableNewHighLowAlert.GetBoolean())
 		{
-			// Get the current chart symbol for alert text 
-			SCString CurrentSymbol = sc.Symbol;
-
-			// Create alert text 
-			SCString AlertText = SCString("New High of Day on ") 
-				+ std::move(CurrentSymbol) + SCString("!");
+			// Format Alert Text 
+			AlertText.Format("%s New High of Day! Price: (%f)", CurrentSymbol.GetChars(), HighOfDay.BeginValue) ;
 
 			// Create New High of day alert 
-			sc.SetAlert(i_AlertNumberForHighLowAlert.GetInt(), 
-				sc.ArraySize-1, std::move(AlertText)); 
+			sc.SetAlert(i_AlertNumberForCrossAlerts.GetInt(), 
+				sc.ArraySize-1, AlertText); 
 		}
 	}
 
-	//
 	// --------------------------------------------------------------------------------
-	// Draw real-time session open close levels as they happen 
+	// Draw Real-Time session LEVELS as they happen 
 	
 	// Get Most recent bar start and end time 
 	CurrentBarStartTime = sc.BaseDateTimeIn.TimeAt(sc.ArraySize-1);
 	CurrentBarEndTime = sc.BaseDataEndDateTime.TimeAt(sc.ArraySize-1);
 
+	// SESSION OPEN
 	// Input enabled and logic to determine if we are on the right bar 
 	if(i_DrawSessionOpen.GetBoolean() && 
 		CurrentBarStartTime == SessionStartTimeInSeconds)
@@ -1900,9 +4790,11 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			// Draw the session open price 
 			s_UseTool SessionOpen;
 
-			// SessionOpen.AddAsUserDrawnDrawing = 1;
+			// User Drawn Drawings 
+			SessionOpen.AddAsUserDrawnDrawing = 1;
 			SessionOpen.AllowCopyToOtherCharts = 1;
-			SessionOpen.AllowSaveToChartbook = 1;
+			SessionOpen.LockDrawing = 1;
+			// SessionOpen.AllowSaveToChartbook = 1;
 			SessionOpen.ChartNumber = sc.ChartNumber;
 			SessionOpen.LineNumber = -1;  
 
@@ -1924,6 +4816,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			SessionOpen.Region = sc.GraphRegion;
 
 			SessionOpen.Color = i_SessionOpenColor.GetColor();
+			SessionOpen.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -1951,6 +4844,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		}
 	}
 
+	// SESSION ClOSE
 	// Input enabled and logic to determine if we are on the right bar 
 	if(i_DrawSessionClose.GetBoolean() && 
 		CurrentBarStartTime == SessionEndTimeInSeconds)
@@ -1961,20 +4855,22 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			// Draw it using our regular drawing tool 
 			s_UseTool SessionClose;
 
-			// SessionClose.AddAsUserDrawnDrawing = 1;
+			// User Drawn Drawings 
+			SessionClose.AddAsUserDrawnDrawing = 1;
 			SessionClose.AllowCopyToOtherCharts = 1;
-			SessionClose.AllowSaveToChartbook = 1;
+			SessionClose.LockDrawing = 1;
+
+			// SessionClose.AllowSaveToChartbook = 1;
 			SessionClose.ChartNumber = sc.ChartNumber;
 			SessionClose.LineNumber = -1;  
 
 			SessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-			SessionClose.LineWidth = 4;
-			SessionClose.LineStyle = LINESTYLE_DASHDOTDOT;
-			SessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_SettlementPriceLineStyle.GetIndex());
+			SessionClose.LineWidth = i_SessionOpenLineWidth.GetInt();
+			SessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_SessionCloseLineStyle.GetIndex());
 			SessionClose.DisplayHorizontalLineValue = 1;
 
 			// Price Value 
-			SessionClose.BeginValue = sc.Open[sc.ArraySize-1];
+			SessionClose.BeginValue = sc.Close[sc.ArraySize-2];
 			SessionClose.EndValue = SessionClose.BeginValue;
 
 			// GET BAR INDEX 
@@ -1984,7 +4880,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			SessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
 			SessionClose.Region = sc.GraphRegion;
 
-			SessionClose.Color = i_SettlementPriceColor.GetColor();
+			SessionClose.Color = i_SessionCloseColor.GetColor();
+			SessionClose.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -2009,41 +4906,45 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		}
 	}
 
-	if(i_DrawMidnightPrice.GetBoolean() && 
-		CurrentBarStartTime == MidnightPriceInSeconds)
+	// US Stocks OPEN
+	// Input enabled and logic to determine if we are on the right bar 
+	if(i_DrawStocksOpen.GetBoolean() && 
+		CurrentBarStartTime == USStocksOpenTimeInSeconds)
 	{
 		// Line Number will be saved if it was already drawn 
-		if(MidnightPriceLineNumberMemory == 0)
+		if(USStocksOpenLineNumberMemory == 0)
 		{
-			// Draw it using our regular drawing tool 
-			s_UseTool MidnightPrice;
+			// Draw the session open price 
+			s_UseTool StocksOpen;
 
-			// MidnightPrice.AddAsUserDrawnDrawing = 1;
-			MidnightPrice.AllowCopyToOtherCharts = 1;
-			MidnightPrice.AllowSaveToChartbook = 1;
-			MidnightPrice.ChartNumber = sc.ChartNumber;
-			MidnightPrice.LineNumber = -1;  
+			// User Drawn Drawings 
+			StocksOpen.AddAsUserDrawnDrawing = 1;
+			StocksOpen.AllowCopyToOtherCharts = 1;
+			StocksOpen.LockDrawing = 1;
 
-			MidnightPrice.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-			MidnightPrice.LineWidth = 4;
-			MidnightPrice.LineStyle = LINESTYLE_DASHDOTDOT;
-			MidnightPrice.DisplayHorizontalLineValue = 1;
+			// StocksOpen.AllowSaveToChartbook = 1;
+			StocksOpen.ChartNumber = sc.ChartNumber;
+			StocksOpen.LineNumber = -1;  
+
+			StocksOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+
+			StocksOpen.LineWidth = i_USStocksOpenPriceLineWidth.GetInt();
+			StocksOpen.LineStyle = static_cast<SubgraphLineStyles>(i_USStocksOpenPriceLineStyle.GetIndex());
+			StocksOpen.DisplayHorizontalLineValue = 1;
 
 			// Price Value 
-			// set value to be close of the previous bar 
-			MidnightPrice.BeginValue = sc.Close[sc.ArraySize-2];
-
-			// set end value to the beginning value 
-			MidnightPrice.EndValue = MidnightPrice.BeginValue;
+			StocksOpen.BeginValue = sc.Open[sc.ArraySize-1];
+			StocksOpen.EndValue = StocksOpen.BeginValue;
 
 			// GET BAR INDEX 
-			MidnightPrice.BeginIndex = sc.ArraySize-1;
-			MidnightPrice.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+			StocksOpen.BeginIndex = sc.ArraySize-1;
+			StocksOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
-			MidnightPrice.AddMethod = UTAM_ADD_OR_ADJUST;
-			MidnightPrice.Region = sc.GraphRegion;
+			StocksOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+			StocksOpen.Region = sc.GraphRegion;
 
-			MidnightPrice.Color = i_MidnightPriceColor.GetColor();
+			StocksOpen.Color = i_USStocksOpenPriceColor.GetColor();
+			StocksOpen.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -2058,20 +4959,147 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			LineName = "";
 
 			// Call fix line labels 
-			VT_FixLineLabels(Month, Day, MidnightPrice, msg, Last, LineName);
+			VT_FixLineLabels(Month, Day, StocksOpen, msg, Last, LineName);
 
 			// draw it 
-			sc.UseTool(MidnightPrice);
+			sc.UseTool(StocksOpen);
 
-			// remember line number 
-			p_LineNumbers->push_back(MidnightPrice.LineNumber);
+			// remember in vector 
+			p_LineNumbers->push_back(StocksOpen.LineNumber);
 
 			// Remember the Line Number so our historical drawings do not redraw it 
-			MidnightPriceLineNumberMemory = MidnightPrice.LineNumber;
+			USStocksOpenLineNumberMemory = StocksOpen.LineNumber;
 		}
 	}
 	
-	// May need different logic for this time 
+	// US Stocks ClOSE
+	// Input enabled and logic to determine if we are on the right bar 
+	if(i_DrawStocksClose.GetBoolean() && 
+		CurrentBarStartTime == USStocksCloseTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(USStocksCloseLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool StocksClose;
+
+			// User Drawn Drawings 
+			StocksClose.AddAsUserDrawnDrawing = 1;
+			StocksClose.AllowCopyToOtherCharts = 1;
+			StocksClose.LockDrawing = 1;
+
+			// StocksClose.AllowSaveToChartbook = 1;
+			StocksClose.ChartNumber = sc.ChartNumber;
+			StocksClose.LineNumber = -1;  
+
+			StocksClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			StocksClose.LineWidth = i_USStocksClosePriceLineWidth.GetInt();;
+			StocksClose.LineStyle = static_cast<SubgraphLineStyles>(i_USStocksClosePriceLineStyle.GetIndex());
+			StocksClose.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			StocksClose.BeginValue = sc.Close[sc.ArraySize-2];
+			StocksClose.EndValue = StocksClose.BeginValue;
+
+			// GET BAR INDEX 
+			StocksClose.BeginIndex = sc.ArraySize-2;
+			StocksClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			StocksClose.AddMethod = UTAM_ADD_OR_ADJUST;
+			StocksClose.Region = sc.GraphRegion;
+
+			StocksClose.Color = i_USStocksClosePriceColor.GetColor();
+			StocksClose.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, StocksClose, msg, Last, LineName);
+
+			sc.UseTool(StocksClose);
+			p_LineNumbers->push_back(StocksClose.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			USStocksCloseLineNumberMemory = StocksClose.LineNumber;
+		}
+	}
+	// CME OPEN  
+	if(i_DrawGlobexOpen.GetBoolean() && 
+		CurrentBarStartTime == CMEOpenTimeInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(CMEOpenLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool CMEOpen;
+
+			// User Drawn Drawings 
+			CMEOpen.AddAsUserDrawnDrawing = 1;
+			CMEOpen.AllowCopyToOtherCharts = 1;
+			CMEOpen.LockDrawing = 1;
+
+			// CMEOpen.AllowSaveToChartbook = 1;
+			CMEOpen.ChartNumber = sc.ChartNumber;
+			CMEOpen.LineNumber = -1;  
+
+			CMEOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			CMEOpen.LineWidth = i_CMEOpenPriceLineWidth.GetInt();
+			CMEOpen.LineStyle = static_cast<SubgraphLineStyles>(i_CMEOpenPriceLineStyle.GetIndex());
+			CMEOpen.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			CMEOpen.BeginValue = sc.Open[sc.ArraySize-1];
+			CMEOpen.EndValue = CMEOpen.BeginValue;
+
+			// GET BAR INDEX 
+			CMEOpen.BeginIndex = sc.ArraySize-1;
+			CMEOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			CMEOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+			CMEOpen.Region = sc.GraphRegion;
+
+			CMEOpen.Color = i_CMEOpenPriceColor.GetColor();
+			CMEOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, CMEOpen, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(CMEOpen);
+
+			// remember line number 
+			p_LineNumbers->push_back(CMEOpen.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			CMEOpenLineNumberMemory = CMEOpen.LineNumber;
+		}
+	}
+	// CME CLOSE 
+	// SOMETIMES THIS CME CLOSE WILL NOT DRAW BECAUSE OF INTRADAY STORAGE TIME UNIT
+	// AND BECAUSE THERE IS USUALLY NO BAR AFTER THIS CLOSE BAR. 
+	//
 	// Note: This functions on most symbols but not CME Futures symbols where
 	// the market close is 5pm. When the market re opens, simply recalculate
 	// the chart and the historical drawing code will handle the drawing of
@@ -2083,31 +5111,35 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		if(CMECloseLineNumberMemory == 0)
 		{
 			// Draw it using our regular drawing tool 
-			s_UseTool CMESessionClose;
+			s_UseTool CMEClose;
 
-			// CMESessionClose.AddAsUserDrawnDrawing = 1;
-			CMESessionClose.AllowCopyToOtherCharts = 1;
-			CMESessionClose.AllowSaveToChartbook = 1;
-			CMESessionClose.ChartNumber = sc.ChartNumber;
-			CMESessionClose.LineNumber = -1;  
+			// User Drawn Drawings 
+			CMEClose.AddAsUserDrawnDrawing = 1;
+			CMEClose.AllowCopyToOtherCharts = 1;
+			CMEClose.LockDrawing = 1;
 
-			CMESessionClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
-			CMESessionClose.LineWidth = i_GlobexClosePriceLineWidth.GetInt();
-			CMESessionClose.LineStyle = static_cast<SubgraphLineStyles>(i_GlobexClosePriceLineStyle.GetIndex());
-			CMESessionClose.DisplayHorizontalLineValue = 1;
+			// CMEClose.AllowSaveToChartbook = 1;
+			CMEClose.ChartNumber = sc.ChartNumber;
+			CMEClose.LineNumber = -1;  
+
+			CMEClose.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			CMEClose.LineWidth = i_CMEClosePriceLineWidth.GetInt();
+			CMEClose.LineStyle = static_cast<SubgraphLineStyles>(i_CMEClosePriceLineStyle.GetIndex());
+			CMEClose.DisplayHorizontalLineValue = 1;
 
 			// Price Value 
-			CMESessionClose.BeginValue = sc.Close[sc.ArraySize-2];
-			CMESessionClose.EndValue = CMESessionClose.BeginValue;
+			CMEClose.BeginValue = sc.Close[sc.ArraySize-2];
+			CMEClose.EndValue = CMEClose.BeginValue;
 
 			// GET BAR INDEX 
-			CMESessionClose.BeginIndex = sc.ArraySize-2;
-			CMESessionClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+			CMEClose.BeginIndex = sc.ArraySize-2;
+			CMEClose.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
 
-			CMESessionClose.AddMethod = UTAM_ADD_OR_ADJUST;
-			CMESessionClose.Region = sc.GraphRegion;
+			CMEClose.AddMethod = UTAM_ADD_OR_ADJUST;
+			CMEClose.Region = sc.GraphRegion;
 
-			CMESessionClose.Color = i_GlobexClosePriceColor.GetColor();
+			CMEClose.Color = i_CMEClosePriceColor.GetColor();
+			CMEClose.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -2122,19 +5154,20 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			LineName = "";
 
 			// Call fix line labels 
-			VT_FixLineLabels(Month, Day, CMESessionClose, msg, Last, LineName);
+			VT_FixLineLabels(Month, Day, CMEClose, msg, Last, LineName);
 
 			// draw it 
-			sc.UseTool(CMESessionClose);
+			sc.UseTool(CMEClose);
 
 			// remember line number 
-			p_LineNumbers->push_back(CMESessionClose.LineNumber);
+			p_LineNumbers->push_back(CMEClose.LineNumber);
 
 			// Remember the Line Number so our historical drawings do not redraw it 
-			CMECloseLineNumberMemory = CMESessionClose.LineNumber;
+			CMECloseLineNumberMemory = CMEClose.LineNumber;
 		}
 	}
 
+	// EU OPEN
 	if(i_DrawEuropeOpen.GetBoolean() && 
 		CurrentBarStartTime == EUOpenTimeInSeconds)
 	{
@@ -2143,9 +5176,12 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		{
 			s_UseTool EUOpen;
 
-			// EUOpen.AddAsUserDrawnDrawing = 1;
+			// User Drawn Drawings
+			EUOpen.AddAsUserDrawnDrawing = 1;
 			EUOpen.AllowCopyToOtherCharts = 1;
-			EUOpen.AllowSaveToChartbook = 1;
+			EUOpen.LockDrawing = 1;
+
+			// EUOpen.AllowSaveToChartbook = 1;
 			EUOpen.ChartNumber = sc.ChartNumber;
 			EUOpen.LineNumber = -1;  
 
@@ -2166,6 +5202,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			EUOpen.Region = sc.GraphRegion;
 
 			EUOpen.Color = i_EuropeOpenColor.GetColor();
+			EUOpen.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -2193,6 +5230,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		}
 	}
 
+	// EU CLOSE
 	if(i_DrawEuropeClose.GetBoolean() && 
 		CurrentBarStartTime == EUCloseTimeInSeconds)
 	{
@@ -2201,9 +5239,11 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		{
 			s_UseTool EUClose;
 
-			// EUClose.AddAsUserDrawnDrawing = 1;
+			// User Drawn Drawings 
+			EUClose.AddAsUserDrawnDrawing = 1;
 			EUClose.AllowCopyToOtherCharts = 1;
-			EUClose.AllowSaveToChartbook = 1;
+			EUClose.LockDrawing = 1;
+			// EUClose.AllowSaveToChartbook = 1;
 			EUClose.ChartNumber = sc.ChartNumber;
 			EUClose.LineNumber = -1;  
 
@@ -2224,6 +5264,7 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			EUClose.Region = sc.GraphRegion;
 
 			EUClose.Color = i_EuropeCloseColor.GetColor();
+			EUClose.FontSize = i_FontSizeForLineText.GetInt();
 
 			// Code used for Fixing Line Labels 
 			
@@ -2251,6 +5292,138 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 		}
 	}
 
+	// Midnight Price
+	if(i_DrawMidnightPrice.GetBoolean() && 
+		CurrentBarStartTime == MidnightPriceInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(MidnightPriceLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool MidnightPrice;
+
+			// User Drawn Drawings 
+			MidnightPrice.AddAsUserDrawnDrawing = 1;
+			MidnightPrice.AllowCopyToOtherCharts = 1;
+			MidnightPrice.LockDrawing = 1;
+
+			// MidnightPrice.AllowSaveToChartbook = 1;
+			MidnightPrice.ChartNumber = sc.ChartNumber;
+			MidnightPrice.LineNumber = -1;  
+
+			MidnightPrice.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			MidnightPrice.LineWidth = i_MidnightPriceLineWidth.GetInt();
+			MidnightPrice.LineStyle = static_cast<SubgraphLineStyles>(i_MidnightPriceLineStyle.GetIndex());
+			MidnightPrice.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			// set value to be close of the previous bar 
+			MidnightPrice.BeginValue = sc.Close[sc.ArraySize-2];
+
+			// set end value to the beginning value 
+			MidnightPrice.EndValue = MidnightPrice.BeginValue;
+
+			// GET BAR INDEX 
+			MidnightPrice.BeginIndex = sc.ArraySize-1;
+			MidnightPrice.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			MidnightPrice.AddMethod = UTAM_ADD_OR_ADJUST;
+			MidnightPrice.Region = sc.GraphRegion;
+
+			MidnightPrice.Color = i_MidnightPriceColor.GetColor();
+			MidnightPrice.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, MidnightPrice, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(MidnightPrice);
+
+			// remember line number 
+			p_LineNumbers->push_back(MidnightPrice.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			MidnightPriceLineNumberMemory = MidnightPrice.LineNumber;
+		}
+	}
+	// Midnight UTC Price
+	if(i_DrawUTCOpenPrice.GetBoolean() && 
+		CurrentBarStartTime == UTCOpenPriceInSeconds)
+	{
+		// Line Number will be saved if it was already drawn 
+		if(UTCOpenPriceLineNumberMemory == 0)
+		{
+			// Draw it using our regular drawing tool 
+			s_UseTool UTCOpen;
+
+			// User Drawn Drawings 
+			UTCOpen.AddAsUserDrawnDrawing = 1;
+			UTCOpen.AllowCopyToOtherCharts = 1;
+			UTCOpen.LockDrawing = 1;
+
+			// UTCOpen.AllowSaveToChartbook = 1;
+			UTCOpen.ChartNumber = sc.ChartNumber;
+			UTCOpen.LineNumber = -1;  
+
+			UTCOpen.DrawingType = DRAWING_HORIZONTAL_LINE_NON_EXTENDED;
+			UTCOpen.LineWidth = i_UTCOpenPriceLineWidth.GetInt();
+			UTCOpen.LineStyle = static_cast<SubgraphLineStyles>(i_UTCOpenPriceLineStyle.GetIndex());
+			UTCOpen.DisplayHorizontalLineValue = 1;
+
+			// Price Value 
+			// set value to be close of the previous bar 
+			UTCOpen.BeginValue = sc.Close[sc.ArraySize-2];
+
+			// set end value to the beginning value 
+			UTCOpen.EndValue = UTCOpen.BeginValue;
+
+			// GET BAR INDEX 
+			UTCOpen.BeginIndex = sc.ArraySize-1;
+			UTCOpen.EndIndex = sc.ArraySize-1 + sc.NumberOfForwardColumns;
+
+			UTCOpen.AddMethod = UTAM_ADD_OR_ADJUST;
+			UTCOpen.Region = sc.GraphRegion;
+
+			UTCOpen.Color = i_UTCOpenPriceColor.GetColor();
+			UTCOpen.FontSize = i_FontSizeForLineText.GetInt();
+
+			// Code used for Fixing Line Labels 
+			
+			// Convert bar index into a date time variable, number of days since 1899
+			SCDateTime DrawingStartDate = sc.BaseDateTimeIn[sc.ArraySize-1].GetDate();
+			
+			// get the year month and day from SCDateTimeVariable
+			int Year, Month, Day;
+			DrawingStartDate.GetDateYMD(Year,Month,Day);
+
+			// Assign the line name for this drawing and pass to function
+			LineName = "";
+
+			// Call fix line labels 
+			VT_FixLineLabels(Month, Day, UTCOpen, msg, Last, LineName);
+
+			// draw it 
+			sc.UseTool(UTCOpen);
+
+			// remember line number 
+			p_LineNumbers->push_back(UTCOpen.LineNumber);
+
+			// Remember the Line Number so our historical drawings do not redraw it 
+			UTCOpenPriceLineNumberMemory = UTCOpen.LineNumber;
+		}
+	}
 	// ACS Button to Hide Drawings 
 	if (sc.MenuEventID != 0 && sc.MenuEventID == i_ACSButtonToHideLevels.GetInt())
 	{
@@ -2264,8 +5437,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			s_UseTool Line;
 			for(int i = 0; i < p_LineNumbers->size();i++)
 			{
-				// if(sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
-				if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+				if(sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+				// if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
 				{
 					// Hide the drawing and redraw 
 					Line.HideDrawing = 1;
@@ -2282,7 +5455,8 @@ SCSFExport scsf_DrawPriorDaysLevels(SCStudyInterfaceRef sc)
 			s_UseTool Line;
 			for(int i = 0; i < p_LineNumbers->size();i++)
 			{
-				if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+				if(sc.GetUserDrawnDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
+				// if(sc.GetACSDrawingByLineNumber(sc.ChartNumber, (*p_LineNumbers)[i], Line))
 				{
 					// Hide the drawing and redraw 
 					Line.HideDrawing = 0;
@@ -3349,6 +6523,7 @@ void CURLTelegramPostRequest(const SCString& URL, const std::string& ChatID, con
 		curl_global_cleanup();
 	}
 }
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 {
@@ -3364,6 +6539,7 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	SCInputRef Input_FindDuplicateStudies = sc.Input[8];
 	SCInputRef Input_CustomizeMessageContent = sc.Input[9];
 	SCInputRef Input_Debug = sc.Input[10];
+	SCInputRef Input_ToggleAlertsACSButtonNumber = sc.Input[11];
 
 	SCString msg; // logging object
 	
@@ -3419,7 +6595,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 
 		"<br> <br> <strong><u>HOW TO SETUP AND USE THIS STUDY:</u></strong> "
 		"<br> <br> <strong><u>Step 1:</u></strong> "
-		"<br> <br> It is necessary to be running Sierra Chart Version <strong>2644</strong> or higher to use this study. "
 		"<br> <br> For this study to work it is necessary to <u>Enable</u> this setting in Sierra Chart:"
 		"<br> <span style=\"background-color: yellow; font-weight: bold;\">Global Settings >> Log >> Save Alerts Log to File</span>"
 
@@ -3510,8 +6685,9 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		"<br> <br> -VerrilloTrading, Content Creator - Programmer";
 
 		// Study Defaults
-		sc.GraphName = "Telegram Chart & Drawing Alerts";
-		sc.AutoLoop = 0;//Manual looping
+		std::string StudyGraphName = "Alerts - Send SC Alerts to Telegram | v" + std::to_string(ver) + " |";
+		sc.GraphName = StudyGraphName.c_str();
+		sc.AutoLoop = 0; // Manual looping
 		sc.GraphRegion = 0;
 		sc.ScaleRangeType= SCALE_SAMEASREGION;
 
@@ -3553,7 +6729,6 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		Input_FindDuplicateStudies.Name = "Find Duplicate Studies in Current Chartbook";
 		Input_FindDuplicateStudies.SetYesNo(0);
 		Input_FindDuplicateStudies.SetDescription("This input can be enabled to determine if there are duplicate instances of this study within the same chartbook. When set to yes and two or more instances of this study exist within the same chartbook, a message will be added to the Sierra Chart message log containing the chart number where the duplicate study is found."); 
-
 		Input_CustomizeMessageContent.Name = "Remove Items from Message Text for Chart/Study Alerts";
 		Input_CustomizeMessageContent.SetCustomInputStrings("Off;Remove Formula;Remove All Except Study Name");
 		Input_CustomizeMessageContent.SetCustomInputIndex(0);
@@ -3562,6 +6737,12 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		Input_Debug.Name = "Print CURL Request Response in Message Log";
 		Input_Debug.SetYesNo(0);
 		Input_Debug.SetDescription("This input is used to debug a http request by printing the reseponse to the SC Message log.");
+
+		Input_ToggleAlertsACSButtonNumber.Name = "ACS Button Number To Enable/Disable Alerts";
+		Input_ToggleAlertsACSButtonNumber.SetInt(50);
+		Input_ToggleAlertsACSButtonNumber.SetIntLimits(1,MAX_ACS_CONTROL_BAR_BUTTONS);
+		Input_ToggleAlertsACSButtonNumber.SetDescription("This button is used to enable or disable the alerts sent by this study. It controls Send Telegram On Alert Trigger. It offers a quicker way of seeing if alerts are enabled. It is faster to enable and disable alerts.");
+
 
 		// Persistent variable precaution 
 		if(FirstTimeStart != 0)
@@ -3578,20 +6759,69 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 	{
 		if(sc.Index == 0)
 		{
-		  sc.AddMessageToLog("User is not authorized to use this study",1);
+		  sc.AddMessageToLog("You are not allowed to use this study. Please contact support@verrillotrading.com to obtain free access.",1);
 		}
     	return;
 	} 
 
+	// ACS Button 
+	if (sc.MenuEventID != 0 && sc.MenuEventID == Input_ToggleAlertsACSButtonNumber.GetInt())
+	{
+		int ButtonState = sc.GetCustomStudyControlBarButtonEnableState(Input_ToggleAlertsACSButtonNumber.GetInt());
 
-	// Add support for Enabling and Disabling the study via the input
+		// If button was turned on, check our input and change it 
+		if (ButtonState == 1 && Input_Enabled.GetBoolean() != 1)
+		{
+			// Set this to only get here once 
+			Input_Enabled.SetYesNo(1); 
+
+			// No need to recalculate chart 
+
+			// Optional: Find instances of the study in the chartbook if there is more than one 
+			// This is also convenient because any chart in the chartbook can be the currently selected chart 
+			//
+		}
+		if(ButtonState == 0 && Input_Enabled.GetBoolean() != 0) 
+		{
+			// Set this to only get here once 
+			Input_Enabled.SetYesNo(0); 
+
+			// No need to recalculate chart 
+		}
+	} // End ACS Button 
+
+	// Enabling and Disabling the study via the input
+	// This also sets the ACS button accordingly 
 	if(Input_Enabled.GetBoolean() == 0)
 	{
 		// debug 
 		// sc.AddMessageToLog("Error: Study is disabled.",1);
-		
-		return; // the study is turned off
+		// check the state of the acs button 
+		int ButtonState = sc.GetCustomStudyControlBarButtonEnableState(Input_ToggleAlertsACSButtonNumber.GetInt());
+
+		// If button was turned on, check our input and change it 
+		if(ButtonState != 0)
+		{
+			// turn off button 
+			sc.SetCustomStudyControlBarButtonEnable(Input_ToggleAlertsACSButtonNumber.GetInt(), 0);
+
+			// TODO: Possibly recalculate chart 
+		}
+
+		// the study is turned off so end function 
+		return; 
 	}
+	else
+	{
+		// check the state of the acs button 
+		int ButtonState = sc.GetCustomStudyControlBarButtonEnableState(Input_ToggleAlertsACSButtonNumber.GetInt());
+		if(ButtonState != 1)
+		{
+			// turn on button 
+			sc.SetCustomStudyControlBarButtonEnable(Input_ToggleAlertsACSButtonNumber.GetInt(), 1);
+		}
+	}
+
 
 	// DO NOT TRIGGER STUDY IF WE ARE STILL DOWNLOADING HISTORICAL DATA
 	// ON ANY CHARTS IN THE CHARTBOOK
@@ -4493,29 +7723,8 @@ SCSFExport scsf_TelegramDrawingAlert(SCStudyInterfaceRef sc)
 		num_files_memory = number_of_files;
 	}
 }
-// Last Updated: Tue Apr  9 16:52:10 CST 2024
-// const int version = 20;
-/*==========================================================================*/
-bool IsStopOrder(int& OrderTypeAsInt )
-{
-	return(OrderTypeAsInt == SCT_ORDERTYPE_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STOP_LIMIT
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRAILING_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRAILING_STOP_LIMIT
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRIGGERED_TRAILING_STOP_3_OFFSETS 
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRIGGERED_TRAILING_STOP_LIMIT_3_OFFSETS
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STEP_TRAILING_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STEP_TRAILING_STOP_LIMIT
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRIGGERED_STEP_TRAILING_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRIGGERED_STEP_TRAILING_STOP_LIMIT
-		|| OrderTypeAsInt == SCT_ORDERTYPE_BID_ASK_QUANTITY_TRIGGERED_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRADE_VOLUME_TRIGGERED_STOP
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STOP_WITH_BID_ASK_TRIGGERING
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STOP_WITH_LAST_TRIGGERING
-		|| OrderTypeAsInt == SCT_ORDERTYPE_STOP_LIMIT_CLIENT_SIDE
-		|| OrderTypeAsInt == SCT_ORDERTYPE_TRIGGERED_STOP);
-}
 
+/*==========================================================================*/
 // ARG2: 1 signals a target order, 2 signals a stop order 
 int GetNearestActiveOrder(SCStudyInterfaceRef& sc, int TargetOrStop, double& LastPrice, s_SCTradeOrder& Order, double& PositionIncludingWorkingOrders, double& ClosestOrderPrice)
 {
@@ -4528,17 +7737,20 @@ int GetNearestActiveOrder(SCStudyInterfaceRef& sc, int TargetOrStop, double& Las
 	{
 		Index++; // Increment the index for the next call to sc.GetOrderByIndex
 	  
-		// if the order is NOT OPEN STATUS, continue to next order
-		if (Order.OrderStatusCode !=  SCT_OSC_OPEN)
+		// if the order is NOT OPEN or HELD STATUS, continue to next order
+		if (Order.OrderStatusCode != SCT_OSC_OPEN && Order.OrderStatusCode != SCT_OSC_HELD)
 		{
 			continue;
 		}
-		else if(Order.OrderStatusCode == SCT_OSC_OPEN) // order is open status
+
+		// Order is OPEN or HELD status
+		else if(Order.OrderStatusCode == SCT_OSC_OPEN
+			|| Order.OrderStatusCode == SCT_OSC_HELD) 
 		{
 			if(TargetOrStop == 1) // is target order code block
 			{
-				if( (Order.IsLimitOrder() && Order.IsAttachedOrder() )
-					|| (Order.IsLimitOrder() && Order.OCOSiblingInternalOrderID != 0))
+				if( (IsLimitOrderV2(Order.OrderTypeAsInt) && Order.IsAttachedOrder() )
+					|| (IsLimitOrderV2(Order.OrderTypeAsInt) && Order.OCOSiblingInternalOrderID != 0))
 				{
 					double difference = std::abs(Order.Price1 - LastPrice);
 					
@@ -4563,7 +7775,6 @@ int GetNearestActiveOrder(SCStudyInterfaceRef& sc, int TargetOrStop, double& Las
 					// order is not a limit order or is not an attached order 
 					continue;
 				}
-
 			}
 			else if(TargetOrStop == 2) // is stop order code block
 			{
@@ -4634,7 +7845,8 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 		"<br> <br> Thank you and happy trading."
 		"<br> <br> - VerrilloTrading, Content Creator - Programmer";
 
-		sc.GraphName = "Move Closest Attached Order To Price";
+		std::string StudyGraphName = "Trading - Move Closest Orders To Price | v" + std::to_string(ver) + " |";
+		sc.GraphName = StudyGraphName.c_str();
 		sc.ValueFormat = VALUEFORMAT_INHERITED;
 		sc.GraphRegion = 0;
 		sc.AutoLoop		= 0;
@@ -4680,7 +7892,7 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 	{
 		if(sc.Index == 0)
 		{
-		  sc.AddMessageToLog("You are not allowed to use this study",1);
+		  sc.AddMessageToLog("You are not allowed to use this study. Please contact support@verrillotrading.com to obtain free access.",1);
 		}
     	return;
 	} 
@@ -4689,12 +7901,12 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 	{
 		if (!sc.ChartTradeModeEnabled)
 		{
-			sc.AddMessageToLog("Chart Trade Mode is not active. No action performed.", 1);
+			// sc.AddMessageToLog("Chart Trade Mode is not active. No action performed.", 1);
 			return;
 		}
 	}
 	
-	// For safety we must never do any order management while historical data is being downloaded.
+	//For safety we must never do any order management while historical data is being downloaded.
 	if (sc.ChartIsDownloadingHistoricalData(sc.ChartNumber))
 	{
 		//sc.AddMessageToLog("Chart is downloading historical data, no order management allowed.", 1);
@@ -4705,7 +7917,7 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 	sc.SendOrdersToTradeService = !sc.GlobalTradeSimulationIsOn;
 
 	// ACS Button Press (Move Closest Attached Order) 
-	if (sc.MenuEventID == Input_MoveClosestAttachedOrderACSButtonNumber.GetInt() )
+	if (sc.MenuEventID != 0 && sc.MenuEventID == Input_MoveClosestAttachedOrderACSButtonNumber.GetInt() )
 	{
 		// For this button press we will reset the button back to off state
 		// since pressing the button executes a function
@@ -4748,11 +7960,13 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 				// FUNCTION VERSION 
 				if(Input_PrioritizeActiveOrders.GetYesNo())
 				{
+					// sc.AddMessageToLog("we get here!",1);
 					// Check if there is an active order to prioritize 
 					int OrderIDToModify = GetNearestActiveOrder(sc, 1, LastPrice, Order, 
 						PositionIncludingWorkingOrders, ClosestOrderPrice);
 					if(OrderIDToModify != 0)
 					{
+						// sc.AddMessageToLog("we get here!",1);
 						// do not commit the modification if the modification
 						// price is same as the order price 
 						if(ClosestOrderPrice != sc.ChartTradingOrderPrice)
@@ -4779,11 +7993,11 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 							Index++; // Increment the index for the next call to sc.GetOrderByIndex
 						  
 							if((IsWorkingOrderStatus(Order.OrderStatusCode) 
-								&& Order.IsLimitOrder() 
+								&& IsLimitOrderV2(Order.OrderTypeAsInt) 
 								&& Order.ParentInternalOrderID != 0 )
 								|| 
 								(IsWorkingOrderStatus(Order.OrderStatusCode)
-								&& Order.IsLimitOrder()
+								&& IsLimitOrderV2(Order.OrderTypeAsInt)
 							   	&& Order.OCOSiblingInternalOrderID != 0	))
 							{
 								double difference = std::abs(Order.Price1 - LastPrice);
@@ -5050,7 +8264,7 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 							Index++; // Increment the index for the next call to sc.GetOrderByIndex
 						  
 							if(IsWorkingOrderStatus(Order.OrderStatusCode) 
-								&& Order.IsLimitOrder() 
+								&& IsLimitOrderV2(Order.OrderTypeAsInt) 
 								&& Order.IsAttachedOrder() )
 							{
 								double difference = std::abs(Order.Price1 - LastPrice);
@@ -5271,7 +8485,7 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 	}
 
 	// ACS Button Press (move closest unattached Buy order)
-	if (sc.MenuEventID == Input_MoveClosestUnattachedBuyOrderACSButtonNumber.GetInt() )
+	if (sc.MenuEventID != 0 && sc.MenuEventID == Input_MoveClosestUnattachedBuyOrderACSButtonNumber.GetInt() )
 	{
 		// For this button press we will reset the button back to off state
 		// since pressing the button executes a function
@@ -5315,16 +8529,18 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 			s_SCTradeOrder OrderDetails;
 			while( sc.GetOrderByIndex (Index, OrderDetails) != SCTRADING_ORDER_ERROR)
 			{
-				// msg.Format("order symbol: %s ChartSymol: %s" , OrderDetails.Symbol.GetChars(), ChartSymbol.GetChars());
+				// msg.Format("Order symbol: %s Order ID: %d Order Status Code: %d" , OrderDetails.Symbol.GetChars(), OrderDetails.InternalOrderID,
+				// 	OrderDetails.OrderStatusCode);
 				// sc.AddMessageToLog(msg,1);
+				//
 				Index++; // Increment the index for the next call to sc.GetOrderByIndex
 
 				// Only account for BUY open unattached orders, and on the current chart, and must be a limit 
 				if (OrderDetails.BuySell == 1 && OrderDetails.Symbol == ChartSymbol // same symbol (trade only)
-					&& OrderDetails.OrderStatusCode ==  SCT_OSC_OPEN  // open
+					&& (OrderDetails.OrderStatusCode ==  SCT_OSC_OPEN  || OrderDetails.OrderStatusCode == SCT_OSC_HELD) // open or held
 					&& OrderDetails.ParentInternalOrderID == 0 // not an attached order 
 					&& OrderDetails.OCOSiblingInternalOrderID == 0) // not an OCO Order
-					// && OrderDetails.IsLimitOrder()) // is a limit order type 
+					// && IsLimitOrderV2(Order.OrderTypeAsInt)) // is a limit order type 
 				{
 
 					// debug 
@@ -5407,7 +8623,7 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 		}
 	} // End Move Unattached Buy Limit Order ACS Button Scope
 	  
-	if (sc.MenuEventID == Input_MoveClosestUnattachedSellOrderACSButtonNumber.GetInt() )
+	if (sc.MenuEventID != 0 && sc.MenuEventID == Input_MoveClosestUnattachedSellOrderACSButtonNumber.GetInt() )
 	{
 
 		// For this button press we will reset the button back to off state
@@ -5452,10 +8668,10 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 
 				// Only account for BUY open unattached orders, and on the current chart, and must be a limit 
 				if (OrderDetails.BuySell == 2 && OrderDetails.Symbol == ChartSymbol // same symbol (trade only)
-					&& OrderDetails.OrderStatusCode ==  SCT_OSC_OPEN  // open
+					&& (OrderDetails.OrderStatusCode ==  SCT_OSC_OPEN  || OrderDetails.OrderStatusCode == SCT_OSC_HELD) // open or held
 					&& OrderDetails.ParentInternalOrderID == 0 // not an attached order 
 					&& OrderDetails.OCOSiblingInternalOrderID == 0 )// not an OCO Order 
-					// && OrderDetails.IsLimitOrder()) // is a limit order type 
+					// && IsLimitOrderV2(Order.OrderTypeAsInt)) // is a limit order type 
 				{
 					// debug 
 					// msg.Format("BuySellEnum %d Order ID %d", OrderDetails.BuySell, OrderDetails.InternalOrderID );
@@ -5538,72 +8754,413 @@ SCSFExport scsf_ClosestOrderToPrice(SCStudyInterfaceRef sc)
 	} // End Move Unattached Sell Limit Order ACS Button Scope
 	 
 } 
+SCSFExport scsf_CreateOrdersForRiskRewardTool(SCStudyInterfaceRef sc)
+{
+	// Ensure that a valid risk reward tool is selected before adding to the
+	// chart right click menu 
+	//
+	// We can add 4 items 
+	//
+	// 1. Create Buy Limit Bracket
+	// 2. Create Buy Stop Bracket
+	// 3. Create Sell Limit Bracket
+	// 4. Create Sell Stop Bracket
+	//
+	// Orders should always be GTC 
+	// for US Equities The Stop Loss should be a stop limit order 
+	// Idea: For the stop limit price we can obtain the spread between the bid offer and use a multiple of that amount 
+	//
+	// This can be for both the entry and exit prices (if entry is a stop limit entry)
+	//
+	// DONE: DO NOT PERMIT THEM TO SUBMIT A BUY LIMIT ORDER IF THEIR ENTRY PRICE IS ABOVE THE LAST PRICE 
+	// 
+	// Need to check the last price for this 
+	//
+	// TODO: Add an input that allows the user to use a client side hidden
+	// order for their entry and profit target until the market reaches a
+	// certain distance from the order price 
+	//
+	//
+	// TODO: Add an option to submit order using ACS button along with the right click menu. (Faster) 
+	//
+	// TODO: Add error messages as a text display if the user makes an incorrect function. 
+	//
+	// TODO: Add a chase function where once the limit if touched price is
+	// touched, it auto moves the limit price to the bid or ask to attempt a
+	// faster fille
+	//
+	// The text display drawing will be called and it's line number will be
+	// remembered and a timer will be initialized for how long it remains on
+	// the screen. 
+	//
+	// Otherwise check if it is possible to create some kind of dialog prompt with sierra chart, otherwise message log.
+	//
+	// Study inputs 
+	int InputIndex = 0;
+
+	SCInputRef i_BidOfferSpreadMultiplierForStopLimitOffset = sc.Input[InputIndex++];
+	SCInputRef i_MaximumSlippageForStopLimitEntry = sc.Input[InputIndex++];
+	SCInputRef i_UseLimitIfTouchedOrders = sc.Input[InputIndex++];
+
+	int PersistentVariableIndex = 0;
+	int& BuyLimitBracketMenuID = sc.GetPersistentInt(PersistentVariableIndex++);
+	int& BuyStopLimitBracketMenuID = sc.GetPersistentInt(PersistentVariableIndex++);
+	int& SellLimitBracketMenuID = sc.GetPersistentInt(PersistentVariableIndex++);
+	int& SellStopLimitBracketMenuID = sc.GetPersistentInt(PersistentVariableIndex++);
+
+	if(sc.SetDefaults)
+	{
+		std::string StudyGraphName = "Trading - Create Bracket Orders For Risk Reward Tool | v" + std::to_string(ver) + " |";
+		sc.GraphName = StudyGraphName.c_str();
+		sc.ValueFormat = sc.BaseGraphValueFormat;
+		sc.GraphRegion = 0;
+		sc.AutoLoop = 0;
+		sc.UpdateAlways = 1; // More efficient if running a fast chart update interval
+							 //
+		sc.MaximumPositionAllowed = 30;
+		sc.AllowOnlyOneTradePerBar = false;
+		sc.AllowEntryWithWorkingOrders = true;
+		sc.AllowMultipleEntriesInSameDirection = true;
+		sc.AllowOppositeEntryWithOpposingPositionOrOrders = true;
+
+		int StudyDisplayOrder = 1;
+
+		i_BidOfferSpreadMultiplierForStopLimitOffset.Name = "Bid/Ask Spread Multiple For Stop Loss Limit Offset";
+		i_BidOfferSpreadMultiplierForStopLimitOffset.SetFloat(3.0);
+		i_BidOfferSpreadMultiplierForStopLimitOffset.SetFloatLimits(1.0,10.0);
+		i_BidOfferSpreadMultiplierForStopLimitOffset.DisplayOrder = StudyDisplayOrder++;
+
+		i_MaximumSlippageForStopLimitEntry.Name = "Stop Entry Limit Offset in Ticks";
+		i_MaximumSlippageForStopLimitEntry.SetInt(3);
+		i_MaximumSlippageForStopLimitEntry.SetIntLimits(0,1000);
+		i_MaximumSlippageForStopLimitEntry.DisplayOrder = StudyDisplayOrder++;
+
+		i_UseLimitIfTouchedOrders.Name = "Use Triggered Client Side Orders For Entry and Target";
+		i_UseLimitIfTouchedOrders.SetYesNo(1);
+		i_UseLimitIfTouchedOrders.DisplayOrder = StudyDisplayOrder++;
+
+		// Comment out separators during development 
+		//
+		// sc.AddACSChartShortcutMenuSeparator(sc.ChartNumber);
+		BuyLimitBracketMenuID = sc.AddACSChartShortcutMenuItem(sc.ChartNumber, "Risk Reward: Buy Limit Bracket");
+		BuyStopLimitBracketMenuID = sc.AddACSChartShortcutMenuItem(sc.ChartNumber, "Risk Reward: Buy Stop Limit Bracket");
+		SellLimitBracketMenuID = sc.AddACSChartShortcutMenuItem(sc.ChartNumber, "Risk Reward: Sell Limit Bracket");
+		SellStopLimitBracketMenuID = sc.AddACSChartShortcutMenuItem(sc.ChartNumber, "Risk Reward: Sell Stop Limit Bracket");
+		// sc.AddACSChartShortcutMenuSeparator(sc.ChartNumber);
+		// 
+	}
+
+	if(sc.LastCallToFunction)
+	{
+		// remove custom menu items 
+		sc.RemoveACSChartShortcutMenuItem(sc.ChartNumber, BuyLimitBracketMenuID); 
+		sc.RemoveACSChartShortcutMenuItem(sc.ChartNumber, BuyStopLimitBracketMenuID); 
+		sc.RemoveACSChartShortcutMenuItem(sc.ChartNumber, SellLimitBracketMenuID); 
+		sc.RemoveACSChartShortcutMenuItem(sc.ChartNumber, SellStopLimitBracketMenuID) ; 
+
+		// reset persistents
+		BuyLimitBracketMenuID = 0;
+		BuyStopLimitBracketMenuID = 0;
+		SellLimitBracketMenuID = 0;
+		SellStopLimitBracketMenuID = 0;
+
+		return;
+	}
+	// logging object 
+	SCString msg;
+
+	if (sc.MenuEventID != 0)	
+	{
+		if (!sc.ChartTradeModeEnabled)
+		{
+			// sc.AddMessageToLog("Chart Trade Mode is not active. No action performed.", 1);
+			return;
+		}
+	}
+	
+	// For safety we must never do any order management while historical data is being downloaded.
+	if (sc.ChartIsDownloadingHistoricalData(sc.ChartNumber)
+	 || sc.IsChartDataLoadingCompleteForAllCharts() == 0)
+	{
+		//sc.AddMessageToLog("Chart is downloading historical data, no order management allowed.", 1);
+		return;
+	}
+	
+	// This line allows the study to be used for live trading
+	sc.SendOrdersToTradeService = !sc.GlobalTradeSimulationIsOn;
+
+	// Get Currently Selected Drawing
+	// Fill in with currently selected drawing 
+	s_UseTool Tool;
+	if(sc.GetSelectedUserDrawnDrawingFromChart(sc.ChartNumber, Tool))
+	{
+		// Determine what kind of drawing it is 
+		// msg.Format("Drawing Type Enum: %d", Tool.DrawingType);
+		// sc.AddMessageToLog(msg,1);
+		//
+		if(Tool.DrawingType == 41)
+		{
+			// sc.AddMessageToLog("Valid RR Tool is selected!",1);
+			//
+			// Trigger when our menu items are selected, only while the drawing is selected 
+			if(sc.MenuEventID != 0 && sc.MenuEventID == BuyLimitBracketMenuID)
+			{
+				// sc.AddMessageToLog("Buy Limit Bracket Menu Item!",1);
+				// Get the 3 points of the risk reward tool 
+				//
+				// msg.Format("First Value: %f Second Value: %f Third Value: %f", Tool.BeginValue, Tool.EndValue, Tool.ThirdValue);
+				// sc.AddMessageToLog(msg,1);
+
+				double StopPrice = Tool.BeginValue;
+				double EntryPrice = Tool.EndValue;
+				double TargetPrice = Tool.ThirdValue;
+				double Last = sc.GetLastPriceForTrading();
+
+				// Entry Price must be below last for a Buy Limit
+				// Stop Price must be below Entry Price for Buy Limit
+				if(EntryPrice >= Last
+				|| StopPrice >= EntryPrice)
+				{
+					sc.AddMessageToLog("Not Permitted: Buy Limit Price Must Be Below Last Price and Stop Price Must be Below Entry Price!",1);
+					return;
+				}
+				else
+				{
+					// Create our orders 
+					s_SCNewOrder BuyLimit;
+
+					// Basic Order config 
+					BuyLimit.OrderQuantity = sc.TradeWindowOrderQuantity;
+					BuyLimit.TimeInForce = SCT_TIF_GTC;
+
+					// Parent Order Price
+					BuyLimit.Price1 = EntryPrice;
+
+					if(i_UseLimitIfTouchedOrders.GetYesNo())
+					{
+						// Use triggered limit order
+						BuyLimit.OrderType = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+
+						// Price 2 is the trigger price 
+						// BuyLimit.Price2 = EntryPrice;
+
+						// set the target type
+						BuyLimit.AttachedOrderTarget1Type = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+
+					}
+					else
+					{
+						// Standard limit entry order
+						BuyLimit.OrderType = SCT_ORDERTYPE_LIMIT;
+					}
+
+					// Target Price 
+					BuyLimit.Target1Price = TargetPrice;
+
+					// Stop Type
+					BuyLimit.AttachedOrderStop1Type = SCT_ORDERTYPE_STOP_LIMIT;
+
+					// Stop Price 
+					BuyLimit.Stop1Price = StopPrice;
+
+					// Stop Limit Offset
+					double Spread = sc.Ask - sc.Bid;
+					double SpreadWithMultiplier = Spread * i_BidOfferSpreadMultiplierForStopLimitOffset.GetFloat();
+
+					// msg.Format("Spread: %f SpreadWithMult: %f", Spread, SpreadWithMultiplier);
+					// sc.AddMessageToLog(msg,1);
+
+					BuyLimit.StopLimitOrderLimitOffset = SpreadWithMultiplier;
+
+					// Send Order
+					int Result = static_cast<int>(sc.BuyEntry(BuyLimit));
+				}
+			}
+			else if(sc.MenuEventID != 0 && sc.MenuEventID == BuyStopLimitBracketMenuID)
+			{
+				// sc.AddMessageToLog("Buy Stop Limit Bracket Menu Item!",1);
+				//
+				double StopPrice = Tool.BeginValue;
+				double EntryPrice = Tool.EndValue;
+				double TargetPrice = Tool.ThirdValue;
+				double Last = sc.GetLastPriceForTrading();
+
+				// Entry Price must be above last for a Buy Stop Entry
+				if(EntryPrice <= Last
+				|| StopPrice >= EntryPrice)
+				{
+					sc.AddMessageToLog("Not Permitted: Buy Stop Price Must Be Above Last and Stop Price must be below Entry Price.",1);
+					return;
+				}
+				else
+				{
+					// Create our order
+					s_SCNewOrder BuyStop;
+
+					// Basic Order config 
+					BuyStop.OrderQuantity = sc.TradeWindowOrderQuantity;
+					BuyStop.OrderType = SCT_ORDERTYPE_STOP_LIMIT;
+					BuyStop.TimeInForce = SCT_TIF_GTC;
+
+					// Order Prices 
+					BuyStop.Price1 = EntryPrice;
+					BuyStop.Price2 = EntryPrice + (i_MaximumSlippageForStopLimitEntry.GetInt() * sc.TickSize); // Stop Limit Offset Price 
+																											   //
+					if(i_UseLimitIfTouchedOrders.GetYesNo())
+					{
+						// Set target order type 
+						BuyStop.AttachedOrderTarget1Type = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+					}
+					// Target Order Price 
+					BuyStop.Target1Price = TargetPrice;
+
+					// Stop Order Config 
+					BuyStop.Stop1Price = StopPrice;
+					BuyStop.AttachedOrderStop1Type = SCT_ORDERTYPE_STOP_LIMIT;
+
+					double Spread = sc.Ask - sc.Bid;
+					double SpreadWithMultiplier = Spread * i_BidOfferSpreadMultiplierForStopLimitOffset.GetFloat();
+
+					// msg.Format("Spread: %f SpreadWithMult: %f", Spread, SpreadWithMultiplier);
+					// sc.AddMessageToLog(msg,1);
+
+					BuyStop.StopLimitOrderLimitOffset = SpreadWithMultiplier;
+
+					// Send Order 
+					int Result = static_cast<int>(sc.BuyEntry(BuyStop));
+				}
+			}
+			else if(sc.MenuEventID != 0 && sc.MenuEventID == SellLimitBracketMenuID)
+			{
+				// sc.AddMessageToLog("Sell Limit Bracket Menu Item!",1);
+				//
+				double StopPrice = Tool.BeginValue;
+				double EntryPrice = Tool.EndValue;
+				double TargetPrice = Tool.ThirdValue;
+				double Last = sc.GetLastPriceForTrading();
+
+				// Entry Price must be above last for a Sell Limit Entry
+				if(EntryPrice <= Last
+				|| StopPrice <= EntryPrice)
+				{
+					sc.AddMessageToLog("Not Permitted: Sell Limit Price Must Be Above Last and Stop Price must be above Entry Price.",1);
+					return;
+				}
+				else
+				{
+					// Create our order
+					s_SCNewOrder SellLimit;
+
+					// Basic Order config 
+					SellLimit.OrderQuantity = sc.TradeWindowOrderQuantity;
+					SellLimit.TimeInForce = SCT_TIF_GTC;
+
+					// Parent Order Price
+					SellLimit.Price1 = EntryPrice;
+
+					if(i_UseLimitIfTouchedOrders.GetYesNo())
+					{
+						// Use Triggered limit order
+						SellLimit.OrderType = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+
+						// Price 2 is the trigger price 
+						// SellLimit.Price2 = EntryPrice;
+
+						// Set the Target Type
+						SellLimit.AttachedOrderTarget1Type = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+					}
+					else
+					{
+						// Standard limit entry order
+						SellLimit.OrderType = SCT_ORDERTYPE_LIMIT;
+					}
+
+					// Target price 
+					SellLimit.Target1Price = TargetPrice;
+
+					// Stop Order Config 
+					SellLimit.Stop1Price = StopPrice;
+					SellLimit.AttachedOrderStop1Type = SCT_ORDERTYPE_STOP_LIMIT;
+
+					double Spread = sc.Ask - sc.Bid;
+					double SpreadWithMultiplier = Spread * i_BidOfferSpreadMultiplierForStopLimitOffset.GetFloat();
+
+					// msg.Format("Spread: %f SpreadWithMult: %f", Spread, SpreadWithMultiplier);
+					// sc.AddMessageToLog(msg,1);
+
+					SellLimit.StopLimitOrderLimitOffset = SpreadWithMultiplier;
+					int Result = static_cast<int>(sc.SellEntry(SellLimit));
+				}
+			}
+			else if(sc.MenuEventID != 0 && sc.MenuEventID == SellStopLimitBracketMenuID)
+			{
+				// sc.AddMessageToLog("Sell Stop Limit Bracket Menu Item!",1);
+				//
+				double StopPrice = Tool.BeginValue;
+				double EntryPrice = Tool.EndValue;
+				double TargetPrice = Tool.ThirdValue;
+				double Last = sc.GetLastPriceForTrading();
+
+				// Entry Price must be below last for a Sell Limit Entry
+				if(EntryPrice >= Last
+				|| StopPrice <= EntryPrice)
+				{
+					sc.AddMessageToLog("Not Permitted: Sell Stop Entry Price Must Be Below Last and Stop Price must be above Entry Price.",1);
+					return;
+				}
+				else
+				{
+					// Create our order
+					s_SCNewOrder SellStop;
+
+					// Basic Order config 
+					SellStop.OrderQuantity = sc.TradeWindowOrderQuantity;
+					SellStop.OrderType = SCT_ORDERTYPE_STOP_LIMIT;
+					SellStop.TimeInForce = SCT_TIF_GTC;
+
+					// Order Prices 
+					SellStop.Price1 = EntryPrice;
+					SellStop.Price2 = EntryPrice - (i_MaximumSlippageForStopLimitEntry.GetInt() * sc.TickSize); // Stop Limit Offset Price 
+																												//
+					if(i_UseLimitIfTouchedOrders.GetYesNo())
+					{
+						// Set target order type 
+						SellStop.AttachedOrderTarget1Type = SCT_ORDERTYPE_LIMIT_IF_TOUCHED_CLIENT_SIDE;
+					}
+
+					// Target Price 
+					SellStop.Target1Price = TargetPrice;
 
 
-// Tue May  7 00:55:43 EDT 2024
-// Proposed Change
-// 1. Add the ability to move unnattached parent orders that are in an active state 
-// This should be a separate ACS button than what is used to move target/stops 
-//
-// The IsAttachedOrder parameter should be false for a non attached order 
-// The function will still work the same for stop and limit order depending on if above or below the current bid/ask
-//
-//-------------------------------------------------------------------------------------------------------
-// Last Updated: Apr 9 12:03:40 CST 2024
-//
-// Proposed Changes 
-//
-// 1. Modify Pending Attached Orders when there is no position 
-// 2. Add support for Only Modify Active attached Orders when in a position
-//
-// 3. Allow the user to Modify the Limit Order to be at a price where it is marketable. 
-// If the trader is long they are permitted to move their limit target order to the current 
-// bid price which will hit the bid with the limit order. 
-// Previously you could put the limit target on the ask (for a sell profit
-// taker) and on the bid (for a buy cover)
-//
-// 4. Do not submit order modification unless the modification price is
-// difference than where the order already is
-//
-// DONE: DO NOT ALLOW ORDER TO BE MODIFIED IF ORDER PRICE IS THE SAME AS THE MODIFICATION PRICE 
-// Notes: 
+					// Stop Order Config 
+					SellStop.Stop1Price = StopPrice;
+					SellStop.AttachedOrderStop1Type = SCT_ORDERTYPE_STOP_LIMIT;
+
+					double Spread = sc.Ask - sc.Bid;
+					double SpreadWithMultiplier = Spread * i_BidOfferSpreadMultiplierForStopLimitOffset.GetFloat();
+
+					// msg.Format("Spread: %f SpreadWithMult: %f", Spread, SpreadWithMultiplier);
+					// sc.AddMessageToLog(msg,1);
+
+					SellStop.StopLimitOrderLimitOffset = SpreadWithMultiplier;
+
+					// Send order 
+					int Result = static_cast<int>(sc.SellEntry(SellStop));
+				}
+			}
+
+		}
+		else
+		{
+			return;
 
 
-// Mon Apr  8 11:30:33 CST 2024
-// 1. Create another ACS button which can handle moving orders that are pending 
-// 2. Use the same button for all orders 
-//
-//-----------------------------------------------------
-// 3. Allow the study to prioritize active orders 
-// determine if any other orders exist at this price of the order obtained using sc.GetNearestTargetOrder
-// This way we can select to modify the active order
-//
-//
-// The While Loop gets each order 
-// DONE: Checks if it is the correct order type in question
-//
-// DONE: If Study prioritizes Active Orders, it should first determine if the order obtained by the function is 
-// NOT an Active Order. 
-//
-// Issue: The order obtained from GetClosestTargetOrder may be either
-// Active
-// Pending 
-//
-//--------------------
-// If the order is PENDING or other status, it should then proceed with an
-// operation to determine the closest ACTIVE attached order 
-//------------------------
-//
-//
+		}
+	}
+	else
+	{
+		// sc.AddMessageToLog("no drawing is selected",1);
+		return;
 
-				/* 	//Get the internal order ID */
-				/* 	int InternalOrderID = Order.InternalOrderID; */
-
-				/* } */
-
-// Func: (should know 1, if it's a target or a stop, the sc trade order object )
-// The stop orders check for IsStopOrder() 
-// Target Orders check for IsLimitOrder()
-//
-// Func returns an order ID
-//
+	}
+}
